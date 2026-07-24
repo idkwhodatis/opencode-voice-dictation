@@ -8,7 +8,7 @@ export default defineConfig({
       userscript: {
         name: "OpenCode Voice Dictation",
         namespace: "https://github.com/slaid098/opencode-voice-dictation",
-        version: "1.0.1",
+        version: "1.0.2",
         description:
           "Voice dictation for OpenCode web using Whisper (Groq API) - works on PC and mobile",
         author: "slaid098",

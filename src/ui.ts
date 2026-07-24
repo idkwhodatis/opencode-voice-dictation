@@ -251,6 +251,14 @@ function findComposer(): HTMLElement | null {
   for (const selector of COMPOSER_SELECTORS) {
     const el = document.querySelector<HTMLElement>(selector);
     if (el) {
+      // session-prompt-dock — общий wrapper для question-dock и composer;
+      // если внутри question-dock, не использовать как composer-target
+      if (
+        el.getAttribute("data-component") === "session-prompt-dock" &&
+        el.querySelector('[data-component="session-question-dock"]')
+      ) {
+        continue;
+      }
       console.log(`[ocvd] Composer found via ${selector}`);
       return el;
     }
@@ -300,6 +308,10 @@ function injectIntoElement(
 }
 
 function injectIntoComposer(onToggle: (target: InsertTarget) => void, onCancel: () => void): void {
+  // Не вставлять composer-кнопку, если открыт question-prompt с textarea «Свой ответ»
+  if (document.querySelector('[data-slot="question-custom-input"]')) {
+    return;
+  }
   const composer = findComposer();
   if (composer) {
     injectIntoElement(composer, onToggle, onCancel, "composer");
