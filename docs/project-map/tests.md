@@ -8,8 +8,9 @@ key_files:
   - tests/insert.test.ts — тесты insert
   - tests/keyboard.test.ts — тесты keyboard
   - tests/transcribe.test.ts — тесты transcribe
+  - tests/ui.test.ts — тесты UI-инъекции кнопки 🎤 (composer-dock, child session, question-dock)
 dependencies: [src]
-last_updated: 2026-07-24
+last_updated: 2026-07-26
 ---
 
 # tests/
@@ -21,6 +22,8 @@ last_updated: 2026-07-24
 - `insert.test.ts` — тесты insert
 - `keyboard.test.ts` — тесты keyboard
 - `transcribe.test.ts` — тесты transcribe
+- `ui.test.ts` — тесты UI-инъекции кнопки 🎤 (5 кейсов: dock с prompt-input-v2/prompt-input → кнопка есть; dock без composer / пустой dock / question-dock → кнопки нет). Тестирует через публичный `setupUI` + side-effect (`.ocvd-btn` в DOM), `findComposer` не экспортируется.
 
 ## Patterns
-- vitest run, 47 тестов (5 файлов).
+- vitest run, 52 теста (6 файлов).
+- UI-тесты используют интеграционный подход через `setupUI` + проверку side-effect в DOM (`.ocvd-btn`), т.к. `findComposer` не экспортируется.

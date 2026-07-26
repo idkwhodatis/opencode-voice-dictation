@@ -251,11 +251,19 @@ function findComposer(): HTMLElement | null {
   for (const selector of COMPOSER_SELECTORS) {
     const el = document.querySelector<HTMLElement>(selector);
     if (el) {
-      // session-prompt-dock — общий wrapper для question-dock и composer;
+      // session-prompt-dock — общий wrapper для question-dock, composer и child-session disabled-блока;
       // если внутри question-dock, не использовать как composer-target
       if (
         el.getAttribute("data-component") === "session-prompt-dock" &&
         el.querySelector('[data-component="session-question-dock"]')
+      ) {
+        continue;
+      }
+      // session-prompt-dock валиден как composer-target ТОЛЬКО если внутри есть реальный composer;
+      // child session (subagent) рендерит disabled-блок "Prompt is disabled / Back to parent" вместо composer
+      if (
+        el.getAttribute("data-component") === "session-prompt-dock" &&
+        !el.querySelector('[data-component="prompt-input"], [data-component="prompt-input-v2"]')
       ) {
         continue;
       }
@@ -310,6 +318,12 @@ function injectIntoElement(
 function injectIntoComposer(onToggle: (target: InsertTarget) => void, onCancel: () => void): void {
   // Не вставлять composer-кнопку, если открыт question-prompt с textarea «Свой ответ»
   if (document.querySelector('[data-slot="question-custom-input"]')) {
+    return;
+  }
+  // Defence-in-depth: не вставлять, если в документе нет реального composer (child session / disabled-блок)
+  if (
+    !document.querySelector('[data-component="prompt-input"], [data-component="prompt-input-v2"]')
+  ) {
     return;
   }
   const composer = findComposer();
