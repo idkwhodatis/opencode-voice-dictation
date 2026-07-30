@@ -1,5 +1,10 @@
 # 🚀 opencode-voice-dictation
+<!-- tagline-en:start -->
 > Voice dictation for OpenCode web — mic button via Whisper (Groq API)
+<!-- tagline-en:end -->
+<!-- tagline-ru:start -->
+> Голосовой ввод для OpenCode web — кнопка микрофона через Whisper (Groq API)
+<!-- tagline-ru:end -->
 
 [English](#-english) | [Русский](#-русский)
 
