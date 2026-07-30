@@ -1,7 +1,7 @@
 ---
 module: .
 purpose: Index of project structure and top-level modules
-last_updated: 2026-07-24
+last_updated: 2026-07-30
 ---
 
 # Project Map — opencode-voice-dictation
@@ -12,7 +12,8 @@ Userscript для голосовой диктовки в OpenCode web через
 
 - [`src/`](./src.md) — исходники userscript (entry, ui, audio, transcribe, insert, config, keyboard, types)
 - [`tests/`](./tests.md) — unit-тесты (vitest) + моки
-- [`.github/`](./github.md) — CI workflows, dependabot, release
+- [`.github/`](./github.md) — CI workflows, dependabot, deploy
+- [`assets/`](./assets.md) — статичные ассеты (иконка userscript)
 - [`docs/`](./docs.md) — handoff, ADR, project map
 
 ## Build / tooling
@@ -26,5 +27,5 @@ Userscript для голосовой диктовки в OpenCode web через
 ## Conventions
 
 - Один handoff на PR: `docs/handoff/pr-<N>-<slug>.md` с секциями `## Что сделано`, `## Почему`, `## Pending`, `## Watch out`.
-- ADR на архитектурное решение: `docs/handoff/adr/<NNNN>-<slug>.md` с секциями `## Статус`, `## Контекст`, `## Решение`, `## Альтернативы`.
+- ADR на архитектурное решение: `docs/decisions/<NNNN>-pr-<N>-<slug>.md` с секциями `## Статус`, `## Контекст`, `## Решение`, `## Альтернативы`.
 - Селекторы OpenCode UI — primary (новые) → fallback (старые), порядок = приоритет детекции.

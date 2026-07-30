@@ -1,121 +1,78 @@
-# OpenCode Voice Dictation / Голосовая диктовка для OpenCode
+# 🚀 opencode-voice-dictation
+> Voice dictation for OpenCode web — mic button via Whisper (Groq API)
 
-[![CI](https://github.com/slaid098/opencode-voice-dictation/actions/workflows/ci.yml/badge.svg)](https://github.com/slaid098/opencode-voice-dictation/actions/workflows/ci.yml)
-[![Release](https://github.com/slaid098/opencode-voice-dictation/actions/workflows/release.yml/badge.svg)](https://github.com/slaid098/opencode-voice-dictation/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
----
-
-## Русский
-
-Голосовая диктовка для [OpenCode](https://opencode.ai) web через Whisper (Groq API). Работает на ПК и телефоне.
-
-> ⚠️ **Требуется OpenCode web v1.18.x.** В настройках OpenCode web включите «New UI» — в старом интерфейсе скрипт не работает. Совместимо с OpenCode v1.18.x; старые версии поддерживаются через fallback-селекторы.
-
-### Установка
-
-> **[Установить скрипт](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js)** — открой ссылку в браузере с Violentmonkey/Tampermonkey и подтверди установку.
-
-Или скачай с [Releases](https://github.com/slaid098/opencode-voice-dictation/releases) и импортируй вручную.
-
-### Совместимость
-
-| Платформа | Браузер | Менеджер скриптов | Статус |
-|-----------|---------|-------------------|--------|
-| ПК | Vivaldi | Violentmonkey | ✅ |
-| ПК | Chrome | Tampermonkey | ✅ |
-| ПК | Firefox | Tampermonkey | ✅ |
-| Android | Firefox | Tampermonkey | ✅ |
-| Android | Vivaldi | — | ❌ Нет расширений |
-| Android | Chrome | — | ❌ Нет расширений |
-
-### Настройка
-
-1. Получи бесплатный ключ на [console.groq.com/keys](https://console.groq.com/keys)
-2. Открой OpenCode web
-3. Меню Violentmonkey/Tampermonkey → **Set Groq API Key** → вставь `gsk_...`
-
-### Использование
-
-1. Нажми кнопку микрофона 🎤 в правом верхнем углу поля ввода
-2. Говори — виден таймер записи и кнопка отмены
-3. Нажми ⏹ — запись остановится, текст вставится в поле ввода
-4. Или нажми ✕ — запись отменится, текст не вставляется
-5. На ПК: **Ctrl+Space** — горячая клавиша
-
-Микрофон также доступен в поле ответа на вопросы OpenCode (когда выбираешь "ввести свой ответ").
-
-### Автообновление
-
-Скрипт обновляется сам. При пуше в `main` CI собирает новую версию и публикует в ветку `dist`. Пользователи получают обновление автоматически.
-
-### Настройки
-
-| Пункт меню | Описание |
-|------------|----------|
-| Set Groq API Key | Ключ `gsk_...` |
-| Toggle Auto-Submit | Отправлять после транскрипции |
-| Set Whisper Model | `whisper-large-v3` или `whisper-large-v3-turbo` |
-| Set Language | `ru`, `en` или пусто (авто) |
-| Set Whisper Prompt | Контекст для точности |
+[English](#-english) | [Русский](#-русский)
 
 ---
 
-## English
+## 🇺🇸 English
 
-Voice dictation for [OpenCode](https://opencode.ai) web via Whisper (Groq API). Works on desktop and mobile.
+<!-- summary-en:start -->
+### ❓ Why
+Needed a way to dictate to agents from a phone. Stock Android voice input doesn't cut it. OpenCode web had no built-in voice.
 
-> ⚠️ **Requires OpenCode web v1.18.x.** In OpenCode web settings, enable "New UI" — the script does not work in the old interface. Compatible with OpenCode v1.18.x; older versions are supported via fallback selectors.
+### ✅ What
+A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI. Language selection, auto-submit after dictation. Whisper via Groq API (requires your own key).
+<!-- summary-en:end -->
 
-### Install
+<!-- features-en:start -->
+### Features
 
-> **[Install Script](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js)** — open this link in a browser with Violentmonkey/Tampermonkey and confirm installation.
+| Feature | Description |
+|---------|-------------|
+| 🎤 Mic button | Click 🎤 in the input area, speak — text inserts into the prompt |
+| 🌍 Language | `ru`, `en`, or auto-detect |
+| ⚡ Auto-submit | Sends transcription to the agent after dictation (toggleable) |
+| 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` via Groq API |
+| 📱 Mobile via Firefox | Firefox supports extensions; mobile Chrome doesn't |
+| ✅ Tested on 1.18.8 | Older versions via fallback selectors; needs "New UI" toggle |
+| 🔄 Auto-update | Updates itself via `@updateURL` — no manual reinstall |
+| ⌨️ Ctrl+Space | Desktop hotkey to start/stop recording |
+<!-- features-en:end -->
 
-Or download from [Releases](https://github.com/slaid098/opencode-voice-dictation/releases) and import manually.
+### ⚡ Quick Start
 
-### Compatibility
-
-| Platform | Browser | Userscript Manager | Status |
-|----------|---------|-------------------|--------|
-| Desktop | Vivaldi | Violentmonkey | ✅ |
-| Desktop | Chrome | Tampermonkey | ✅ |
-| Desktop | Firefox | Tampermonkey | ✅ |
-| Android | Firefox | Tampermonkey | ✅ |
-| Android | Vivaldi | — | ❌ No extensions |
-| Android | Chrome | — | ❌ No extensions |
-
-### Setup
-
-1. Get a free API key at [console.groq.com/keys](https://console.groq.com/keys)
-2. Open OpenCode web
-3. Violentmonkey/Tampermonkey menu → **Set Groq API Key** → paste `gsk_...`
-
-### Usage
-
-1. Click the mic button 🎤 in the top-right corner of the input area
-2. Speak — recording timer and cancel button are displayed
-3. Click ⏹ — recording stops, transcribed text is inserted into the input
-4. Or click ✕ — recording is cancelled, no text inserted
-5. Desktop: **Ctrl+Space** shortcut
-
-The mic button is also available in OpenCode question prompt answer fields (when choosing "type your own answer").
-
-### Auto-Update
-
-The script updates automatically. When code is pushed to `main`, CI builds and publishes to the `dist` branch. Users receive updates automatically.
-
-### Settings
-
-| Menu Item | Description |
-|-----------|-------------|
-| Set Groq API Key | API key `gsk_...` |
-| Toggle Auto-Submit | Auto-send after transcription |
-| Set Whisper Model | `whisper-large-v3` or `whisper-large-v3-turbo` |
-| Set Language | `ru`, `en`, or empty (auto-detect) |
-| Set Whisper Prompt | Context for accuracy |
+1. Install [Tampermonkey](https://www.tampermonkey.net/)
+2. Get a key at [console.groq.com/keys](https://console.groq.com/keys)
+3. Open the [script install link](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js) — it installs into Tampermonkey
+4. Tampermonkey menu → **Set Groq API Key** → paste `gsk_...`
 
 ---
 
-## License
+## 🇷🇺 Русский
 
-MIT — see [LICENSE](LICENSE)
+<!-- summary-ru:start -->
+### ❓ Зачем
+Нужен был способ диктовать агентам с телефона. Стандартный Android-ввод не удовлетворяет. Встроенного голоса в OpenCode web не было.
+
+### ✅ Что
+Скрипт для Tampermonkey/Violentmonkey — кнопка микрофона в веб-интерфейсе OpenCode. Выбор языка, автоотправка после диктовки. Whisper через Groq API (нужен свой ключ).
+<!-- summary-ru:end -->
+
+<!-- features-ru:start -->
+### Фичи
+
+| Фича | Описание |
+|------|----------|
+| 🎤 Микрофон | Нажми 🎤 в поле ввода, говори — текст вставится в промт |
+| 🌍 Язык | `ru`, `en` или автоопределение |
+| ⚡ Автоотправка | Отправляет транскрипцию агенту после диктовки (опционально) |
+| 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` через Groq API |
+| 📱 Мобайл через Firefox | Firefox поддерживает расширения; mobile Chrome — нет |
+| ✅ Проверено на 1.18.8 | Старые версии через fallback-селекторы; нужен «New UI» |
+| 🔄 Автообновление | Обновляется сам через `@updateURL` — без ручной переустановки |
+| ⌨️ Ctrl+Space | Горячая клавиша на десктопе |
+<!-- features-ru:end -->
+
+### ⚡ Быстрый старт
+
+1. Установи [Tampermonkey](https://www.tampermonkey.net/)
+2. Получи ключ на [console.groq.com/keys](https://console.groq.com/keys)
+3. Открой [ссылку установки скрипта](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js) — скрипт установится в Tampermonkey
+4. Меню Tampermonkey → **Set Groq API Key** → вставь `gsk_...`
+
+---
+
+## 💬 Support and contacts / Поддержка и контакты
+
+👉 **[slaid098.dev/support](https://slaid098.dev/support)**
