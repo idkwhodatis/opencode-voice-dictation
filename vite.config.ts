@@ -14,7 +14,7 @@ export default defineConfig({
         author: "slaid098",
         match: ["*://*/*"],
         grant: ["GM_xmlhttpRequest", "GM_getValue", "GM_setValue", "GM_registerMenuCommand"],
-        connect: ["api.groq.com"],
+        connect: ["*"],
         "run-at": "document-idle",
         icon: "https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/main/assets/icon.png",
         updateURL:

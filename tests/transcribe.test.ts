@@ -13,6 +13,8 @@ const mockConfig: AppConfig = {
   model: "whisper-large-v3",
   language: "ru",
   whisperPrompt: "Software development discussion.",
+  endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
+  temperature: 0,
   autoSubmit: false,
 };
 
@@ -31,6 +33,7 @@ describe("buildFormData", () => {
     expect(formData.get("response_format")).toBe("text");
     expect(formData.get("language")).toBe("ru");
     expect(formData.get("prompt")).toBe("Software development discussion.");
+    expect(formData.get("temperature")).toBe("0");
 
     const file = formData.get("file") as File;
     expect(file).toBeInstanceOf(Blob);
@@ -44,6 +47,15 @@ describe("buildFormData", () => {
     expect(formData.get("response_format")).toBe("text");
     expect(formData.get("language")).toBeNull();
     expect(formData.get("prompt")).toBeNull();
+    expect(formData.get("temperature")).toBe("0");
+  });
+
+  it("should send temperature as string", () => {
+    const blob = new Blob(["audio data"], { type: "audio/webm" });
+    const config = { ...mockConfig, temperature: 0.5 };
+    const formData = buildFormData(blob, config);
+
+    expect(formData.get("temperature")).toBe("0.5");
   });
 });
 

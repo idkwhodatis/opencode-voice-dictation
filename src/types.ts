@@ -5,6 +5,8 @@ export interface AppConfig {
   model: string;
   language: string;
   whisperPrompt: string;
+  endpoint: string;
+  temperature: number;
   autoSubmit: boolean;
 }
 

@@ -30,8 +30,20 @@ describe("DEFAULTS", () => {
     expect(DEFAULTS.whisperPrompt.length).toBeGreaterThan(50);
   });
 
+  it("should have whisperPrompt under 120 characters (terms only, no sentences)", () => {
+    expect(DEFAULTS.whisperPrompt.length).toBeLessThan(120);
+  });
+
   it("should have autoSubmit disabled by default", () => {
     expect(DEFAULTS.autoSubmit).toBe(false);
+  });
+
+  it("should have default Groq endpoint", () => {
+    expect(DEFAULTS.endpoint).toBe("https://api.groq.com/openai/v1/audio/transcriptions");
+  });
+
+  it("should have temperature 0 by default", () => {
+    expect(DEFAULTS.temperature).toBe(0);
   });
 });
 
@@ -108,8 +120,10 @@ describe("registerMenuCommands", () => {
       onSetModel: () => {},
       onSetLanguage: () => {},
       onSetPrompt: () => {},
+      onSetEndpoint: () => {},
+      onSetTemperature: () => {},
     };
     registerMenuCommands(callbacks);
-    expect(GM_registerMenuCommand).toHaveBeenCalledTimes(5);
+    expect(GM_registerMenuCommand).toHaveBeenCalledTimes(7);
   });
 });

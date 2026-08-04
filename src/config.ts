@@ -6,7 +6,9 @@ export const DEFAULTS: AppConfig = {
   model: "whisper-large-v3",
   language: "",
   whisperPrompt:
-    "Software development discussion. Common terms: API, JSON, async, await, function, class, component, endpoint, deployment, refactoring, merge, commit, pull request, branch, repository, TypeScript, Python, Docker, Kubernetes, OpenCode, Whisper, Groq, contenteditable, SolidJS, Vite, Biome, Vitest, MutationObserver, FormData, MediaRecorder.",
+    "opencode, voice, dictation, transcribe, command, terminal, commit, branch, pull, push, merge, issue, prompt",
+  endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
+  temperature: 0,
   autoSubmit: false,
 };
 
@@ -16,6 +18,8 @@ export function getConfig(): AppConfig {
     model: GM_getValue("model", DEFAULTS.model),
     language: GM_getValue("language", DEFAULTS.language),
     whisperPrompt: GM_getValue("whisperPrompt", DEFAULTS.whisperPrompt),
+    endpoint: GM_getValue("endpoint", DEFAULTS.endpoint),
+    temperature: GM_getValue("temperature", DEFAULTS.temperature),
     autoSubmit: GM_getValue("autoSubmit", DEFAULTS.autoSubmit),
   };
 }
@@ -40,10 +44,14 @@ export function registerMenuCommands(callbacks: {
   onSetModel: () => void;
   onSetLanguage: () => void;
   onSetPrompt: () => void;
+  onSetEndpoint: () => void;
+  onSetTemperature: () => void;
 }): void {
   GM_registerMenuCommand("Set Groq API Key", callbacks.onSetKey);
   GM_registerMenuCommand("Toggle Auto-Submit", callbacks.onToggleAutoSubmit);
   GM_registerMenuCommand("Set Whisper Model", callbacks.onSetModel);
   GM_registerMenuCommand("Set Language", callbacks.onSetLanguage);
   GM_registerMenuCommand("Set Whisper Prompt", callbacks.onSetPrompt);
+  GM_registerMenuCommand("Set STT Endpoint", callbacks.onSetEndpoint);
+  GM_registerMenuCommand("Set Temperature", callbacks.onSetTemperature);
 }

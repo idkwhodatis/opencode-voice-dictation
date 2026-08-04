@@ -1,13 +1,12 @@
 import { GM_xmlhttpRequest } from "$";
 import type { AppConfig, TranscriptionResult } from "./types.js";
 
-const GROQ_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
-
 export function buildFormData(audioBlob: Blob, config: AppConfig): FormData {
   const formData = new FormData();
   formData.append("file", audioBlob, "audio.webm");
   formData.append("model", config.model);
   formData.append("response_format", "text");
+  formData.append("temperature", String(config.temperature));
   if (config.language) {
     formData.append("language", config.language);
   }
@@ -51,7 +50,7 @@ export function transcribe(audioBlob: Blob, config: AppConfig): Promise<Transcri
 
     GM_xmlhttpRequest({
       method: "POST",
-      url: GROQ_API_URL,
+      url: config.endpoint,
       headers: {
         Authorization: `Bearer ${config.groqApiKey}`,
       },

@@ -43,6 +43,24 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 3. Open the [script install link](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js) — it installs into Tampermonkey
 4. Tampermonkey menu → **Set Groq API Key** → paste `gsk_...`
 
+### 🌐 Custom STT Endpoint
+
+Groq may block direct requests from some networks. Point the script at your own nginx proxy:
+
+1. Deploy an nginx reverse proxy that forwards to `api.groq.com`:
+   ```nginx
+   location /groq/ {
+       proxy_pass https://api.groq.com/;
+       proxy_set_header Host api.groq.com;
+   }
+   ```
+2. Tampermonkey menu → **Set STT Endpoint** → paste `https://your-domain.com/groq/openai/v1/audio/transcriptions`
+3. Requests now go through your proxy. The userscript metadata uses `@connect *`, so any domain is allowed.
+
+### 🌡️ Temperature
+
+Whisper may hallucinate on silence/noise. **Set Temperature** (default `0` = deterministic, range `0`–`1`) reduces hallucinations.
+
 ---
 
 ## 🇷🇺 Русский
@@ -76,6 +94,24 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 2. Получи ключ на [console.groq.com/keys](https://console.groq.com/keys)
 3. Открой [ссылку установки скрипта](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js) — скрипт установится в Tampermonkey
 4. Меню Tampermonkey → **Set Groq API Key** → вставь `gsk_...`
+
+### 🌐 Кастомный STT endpoint
+
+Groq может блокировать прямые запросы из некоторых сетей. Направь скрипт на свой nginx-прокси:
+
+1. Разверни nginx reverse proxy, который форвардит на `api.groq.com`:
+   ```nginx
+   location /groq/ {
+       proxy_pass https://api.groq.com/;
+       proxy_set_header Host api.groq.com;
+   }
+   ```
+2. Меню Tampermonkey → **Set STT Endpoint** → вставь `https://your-domain.com/groq/openai/v1/audio/transcriptions`
+3. Запросы пойдут через твой прокси. Метаблок юзерскрипта использует `@connect *`, поэтому разрешён любой домен.
+
+### 🌡️ Temperature
+
+Whisper может галлюцинировать на тишине/шуме. **Set Temperature** (по умолчанию `0` = детерминированный вывод, диапазон `0`–`1`) снижает галлюцинации.
 
 ---
 

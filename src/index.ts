@@ -1,11 +1,14 @@
 import { type AudioRecorder, createAudioRecorder } from "./audio.js";
 import {
+  DEFAULTS,
   getConfig,
   isFirstRun,
   registerMenuCommands,
   setConfig,
   validateApiKey,
 } from "./config.js";
+
+const DEFAULTS_ENDPOINT = DEFAULTS.endpoint;
 import {
   type InsertTarget,
   insertText,
@@ -158,6 +161,34 @@ function promptForWhisperPrompt(): void {
   }
 }
 
+function promptForEndpoint(): void {
+  const current = getConfig().endpoint;
+  const url = prompt("STT endpoint URL:", current);
+  if (url === null) {
+    return;
+  }
+  const trimmed = url.trim();
+  const value = trimmed || DEFAULTS_ENDPOINT;
+  setConfig({ endpoint: value });
+  ui?.toast(`Endpoint set to ${value}`);
+}
+
+function promptForTemperature(): void {
+  const current = getConfig().temperature;
+  const input = prompt("Temperature (0-1):", String(current));
+  if (input === null) {
+    return;
+  }
+  const parsed = Number(input);
+  if (Number.isNaN(parsed)) {
+    ui?.toast("Invalid temperature", true);
+    return;
+  }
+  const clamped = Math.min(1, Math.max(0, parsed));
+  setConfig({ temperature: clamped });
+  ui?.toast(`Temperature set to ${clamped}`);
+}
+
 function toggleAutoSubmit(): void {
   const config = getConfig();
   setConfig({ autoSubmit: !config.autoSubmit });
@@ -199,6 +230,8 @@ function init(): void {
     onSetModel: promptForModel,
     onSetLanguage: promptForLanguage,
     onSetPrompt: promptForWhisperPrompt,
+    onSetEndpoint: promptForEndpoint,
+    onSetTemperature: promptForTemperature,
   });
 
   checkFirstRun();
