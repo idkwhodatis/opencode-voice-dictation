@@ -5,8 +5,7 @@ export const DEFAULTS: AppConfig = {
   groqApiKey: "",
   model: "whisper-large-v3",
   language: "",
-  whisperPrompt:
-    "opencode, voice, dictation, transcribe, command, terminal, commit, branch, pull, push, merge, issue, prompt",
+  whisperPrompt: "",
   endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
   temperature: 0,
   autoSubmit: false,

@@ -26,12 +26,8 @@ describe("DEFAULTS", () => {
     expect(DEFAULTS.language).toBe("");
   });
 
-  it("should have non-empty whisperPrompt", () => {
-    expect(DEFAULTS.whisperPrompt.length).toBeGreaterThan(50);
-  });
-
-  it("should have whisperPrompt under 120 characters (terms only, no sentences)", () => {
-    expect(DEFAULTS.whisperPrompt.length).toBeLessThan(120);
+  it("should have empty whisperPrompt by default", () => {
+    expect(DEFAULTS.whisperPrompt).toBe("");
   });
 
   it("should have autoSubmit disabled by default", () => {

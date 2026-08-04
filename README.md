@@ -61,6 +61,16 @@ Groq may block direct requests from some networks. Point the script at your own 
 
 Whisper may hallucinate on silence/noise. **Set Temperature** (default `0` = deterministic, range `0`–`1`) reduces hallucinations.
 
+### 🌐 Wrong Language (English instead of Russian)
+
+If the model returns English text for Russian audio, clear the Whisper Prompt:
+
+1. Open Tampermonkey/Violentmonkey menu → **Set Whisper Prompt**
+2. Leave the field empty (delete all text)
+3. Confirm
+
+The prompt biases the model toward the prompt's language. An English prompt with Russian audio causes the model to output English. The prompt should match the audio language (or be empty for auto-detect).
+
 ---
 
 ## 🇷🇺 Русский
@@ -112,6 +122,16 @@ Groq может блокировать прямые запросы из неко
 ### 🌡️ Temperature
 
 Whisper может галлюцинировать на тишине/шуме. **Set Temperature** (по умолчанию `0` = детерминированный вывод, диапазон `0`–`1`) снижает галлюцинации.
+
+### 🌐 Неправильный язык (английский вместо русского)
+
+Если модель возвращает английский текст для русской речи, очистите Whisper Prompt:
+
+1. Откройте меню Tampermonkey/Violentmonkey → **Set Whisper Prompt**
+2. Оставьте поле пустым (удалите весь текст)
+3. Подтвердите
+
+Промпт смещает модель к языку промпта. Английский промпт с русским аудио заставляет модель выводить английский. Промпт должен совпадать с языком аудио (или быть пустым для автоопределения).
 
 ---
 
