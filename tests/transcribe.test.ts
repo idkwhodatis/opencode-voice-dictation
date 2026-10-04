@@ -75,14 +75,14 @@ describe("parseErrorResponse", () => {
     expect(result).toBe("Groq server error. Please try again later.");
   });
 
-  it("should parse JSON error body for unknown status codes", () => {
+  it("does not expose unknown JSON error bodies", () => {
     const result = parseErrorResponse(400, '{"error":{"message":"Bad request"}}');
-    expect(result).toBe("Bad request");
+    expect(result).toBe("Transcription failed (HTTP 400). Check endpoint settings.");
   });
 
-  it("should return raw body on JSON parse failure", () => {
+  it("does not expose raw error bodies", () => {
     const result = parseErrorResponse(400, "Plain text error");
-    expect(result).toBe("Error 400: Plain text error");
+    expect(result).toBe("Transcription failed (HTTP 400). Check endpoint settings.");
   });
 });
 
@@ -156,5 +156,35 @@ describe("transcribe", () => {
     callArgs.ontimeout();
 
     await expect(promise).rejects.toThrow("Request timeout");
+  });
+});
+
+describe("cancellation and resource limits", () => {
+  it("rejects a pre-cancelled request without transmitting", async () => {
+    vi.mocked(GM_xmlhttpRequest).mockClear();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(transcribe(new Blob(["fixture"]), mockConfig, controller.signal)).rejects.toThrow(
+      "cancelled",
+    );
+    expect(GM_xmlhttpRequest).not.toHaveBeenCalled();
+  });
+  it("aborts on the local watchdog even if the userscript timeout does not fire", async () => {
+    vi.useFakeTimers();
+    const abort = vi.fn();
+    vi.mocked(GM_xmlhttpRequest).mockReturnValueOnce({ abort });
+    const promise = transcribe(new Blob(["fixture"]), mockConfig);
+    const rejection = expect(promise).rejects.toThrow("timeout");
+    await vi.advanceTimersByTimeAsync(60000);
+    await rejection;
+    expect(abort).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+  it("matches filename to the recorder MIME type", () => {
+    const append = vi.spyOn(FormData.prototype, "append");
+    const blob = new Blob(["fixture"], { type: "audio/mp4" });
+    buildFormData(blob, mockConfig);
+    expect(append).toHaveBeenCalledWith("file", blob, "audio.mp4");
+    append.mockRestore();
   });
 });

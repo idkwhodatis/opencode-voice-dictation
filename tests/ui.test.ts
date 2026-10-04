@@ -1,71 +1,60 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { setupUI } from "../src/ui.js";
-
-const COMPOSER_BTN_SELECTOR = ".ocvd-btn";
-
-function setupCallbacks() {
-  return {
-    onToggle: vi.fn(),
-    onCancel: vi.fn(),
-  };
-}
-
+import { mountComposer } from "./fixtures/composer.js";
+let ui: ReturnType<typeof setupUI> | undefined;
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 afterEach(() => {
+  ui?.destroy();
   document.body.innerHTML = "";
 });
+const start = () => {
+  ui = setupUI({ onToggle: vi.fn(), onCancel: vi.fn() });
+  return ui;
+};
 
-describe("setupUI composer injection", () => {
-  beforeEach(() => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
+describe("mutation-driven UI lifecycle", () => {
+  it("waits for the initial lazy composer without polling", async () => {
+    document.body.innerHTML = "";
+    start();
+    expect(document.querySelector(".ocvd-btn")).toBeNull();
+    mountComposer();
+    await flush();
+    expect(document.querySelectorAll('[data-ocvd="controls"]')).toHaveLength(1);
   });
-
-  it("should inject mic button when prompt-input-v2 is present", () => {
+  it("injects once and handles repeated mutations and composer recreation", async () => {
+    mountComposer();
+    const active = start();
+    active.inject();
+    active.inject();
+    expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+    mountComposer();
+    await flush();
+    expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+  });
+  it("ignores unrelated pages, questions and disabled child-session dock", async () => {
+    document.body.innerHTML = '<div data-component="session-prompt-dock">Prompt disabled</div>';
+    start();
+    expect(document.querySelector(".ocvd-btn")).toBeNull();
     document.body.innerHTML =
-      '<div data-component="session-prompt-dock"><div data-component="prompt-input-v2"></div></div>';
-
-    setupUI(setupCallbacks());
-
-    const btn = document.querySelector(COMPOSER_BTN_SELECTOR);
-    expect(btn).not.toBeNull();
+      '<div data-component="session-question-dock"><textarea data-slot="question-custom-input"></textarea></div>';
+    await flush();
+    expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
   });
-
-  it("should inject mic button when prompt-input is present inside dock", () => {
-    document.body.innerHTML =
-      '<div data-component="session-prompt-dock"><div data-component="prompt-input" contenteditable="true"></div></div>';
-
-    setupUI(setupCallbacks());
-
-    const btn = document.querySelector(COMPOSER_BTN_SELECTOR);
-    expect(btn).not.toBeNull();
+  it("keeps cancel available while starting and processing", () => {
+    mountComposer();
+    const active = start();
+    for (const state of ["starting", "recording", "processing"] as const) {
+      active.updateState(state, 2);
+      expect(document.querySelector(".ocvd-cancel.visible")).not.toBeNull();
+    }
+    active.updateState("idle");
+    expect(document.querySelector(".ocvd-cancel.visible")).toBeNull();
   });
-
-  it("should NOT inject mic button when dock has no prompt-input (child session disabled block)", () => {
-    document.body.innerHTML =
-      '<div data-component="session-prompt-dock"><div>Prompt is disabled</div><button type="button">Back to parent</button></div>';
-
-    setupUI(setupCallbacks());
-
-    const btn = document.querySelector(COMPOSER_BTN_SELECTOR);
-    expect(btn).toBeNull();
-  });
-
-  it("should NOT inject mic button when only session-prompt-dock exists without any composer inside", () => {
-    document.body.innerHTML = '<div data-component="session-prompt-dock"></div>';
-
-    setupUI(setupCallbacks());
-
-    const btn = document.querySelector(COMPOSER_BTN_SELECTOR);
-    expect(btn).toBeNull();
-  });
-
-  it("should NOT inject composer mic button when question-custom-input is open (PR #31 regression guard)", () => {
-    document.body.innerHTML =
-      '<div data-component="session-prompt-dock"><div data-component="session-question-dock"><textarea data-slot="question-custom-input"></textarea></div></div>';
-
-    setupUI(setupCallbacks());
-
-    const dock = document.querySelector('[data-component="session-prompt-dock"]');
-    const composerContainer = dock?.querySelector(":scope > .ocvd-container");
-    expect(composerContainer).toBeNull();
+  it("removes controls when editor becomes disabled", async () => {
+    const editor = mountComposer();
+    start();
+    editor.contentEditable = "false";
+    await flush();
+    expect(document.querySelector(".ocvd-btn")).toBeNull();
   });
 });

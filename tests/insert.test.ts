@@ -1,113 +1,103 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { insertText, isOpencodePage, submitPrompt } from "../src/insert.js";
+import { captureTarget, insertText, isCurrentTarget, submitPrompt } from "../src/insert.js";
+import { mountComposer } from "./fixtures/composer.js";
+
+function target(kind: "composer" | "question" = "composer") {
+  const result = captureTarget(kind);
+  if (!result) throw new Error("Missing fixture target");
+  return result;
+}
 
 beforeEach(() => {
-  document.execCommand = vi.fn(() => true);
+  document.execCommand = vi.fn(() => false);
+  mountComposer();
+});
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.restoreAllMocks();
 });
 
-describe("isOpencodePage", () => {
-  it("should return false when prompt-input not present", () => {
-    document.body.innerHTML = "";
-    expect(isOpencodePage()).toBe(false);
+describe("source-verified composer adapter", () => {
+  it("selects the editable child, never the V2 form", () => {
+    expect(captureTarget()?.editor.getAttribute("data-component")).toBe("prompt-input");
+    expect(captureTarget()?.composer.tagName).toBe("FORM");
   });
-
-  it("should return true when prompt-input is present", () => {
+  it.each(["session-composer", "session-new-composer"])("retains cheap %s fallback", (wrapper) => {
+    mountComposer(wrapper);
+    expect(captureTarget()).not.toBeNull();
+  });
+  it("rejects unrelated, empty or disabled composers", () => {
     document.body.innerHTML =
-      '<div data-component="prompt-input" contenteditable="true" role="textbox"></div>';
-    expect(isOpencodePage()).toBe(true);
+      '<div contenteditable="true"></div><form data-component="prompt-input-v2"></form>';
+    expect(captureTarget()).toBeNull();
+    mountComposer().contentEditable = "false";
+    expect(captureTarget()).toBeNull();
   });
-});
-
-describe("insertText", () => {
-  beforeEach(() => {
+  it("appends text and notifies framework state without replacing mentions or attachments", () => {
+    const editor = mountComposer();
+    editor.innerHTML =
+      'Review <span contenteditable="false" data-mention="file" data-path="src/a.ts">@a.ts</span>';
+    const mention = editor.firstElementChild;
+    const attachments = document.querySelector('[data-slot="prompt-attachments"]');
+    let value = "";
+    editor.addEventListener("input", () => {
+      value = editor.textContent ?? "";
+    });
+    expect(insertText("then add tests", target())).toBe(true);
+    expect(value).toBe("Review @a.ts then add tests");
+    expect(editor.firstElementChild).toBe(mention);
+    expect(document.querySelector('[data-slot="prompt-attachments"]')).toBe(attachments);
+    expect(document.execCommand).toHaveBeenCalledWith("insertText", false, " then add tests");
+  });
+  it("does not duplicate native input events or insertions", () => {
+    const editor = mountComposer();
+    const onInput = vi.fn();
+    editor.addEventListener("input", onInput);
+    document.execCommand = vi.fn((_command, _show, text) => {
+      editor.append(text ?? "");
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      return true;
+    });
+    insertText("hello", target());
+    expect(editor.textContent).toBe("hello");
+    expect(onInput).toHaveBeenCalledTimes(1);
+  });
+  it("rejects stale route and recreated editor targets", () => {
+    const snapshot = target();
+    history.pushState({}, "", "/other-session");
+    expect(isCurrentTarget(snapshot)).toBe(false);
+    expect(insertText("wrong session", snapshot)).toBe(false);
+    const second = target();
+    mountComposer();
+    expect(insertText("wrong editor", second)).toBe(false);
+  });
+  it("clicks only the current enabled Send button, never Stop or shell", () => {
+    const snapshot = target();
+    const button = snapshot.composer.querySelector("button") as HTMLButtonElement;
+    const click = vi.fn();
+    button.addEventListener("click", click);
+    expect(submitPrompt(snapshot)).toBe(true);
+    button.disabled = true;
+    expect(submitPrompt(snapshot)).toBe(false);
+    button.disabled = false;
+    for (const icon of ["stop", "arrow-undo-down"]) {
+      button.dataset.icon = icon;
+      expect(submitPrompt(snapshot)).toBe(false);
+    }
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+  it("appends question input through its native setter and event", () => {
     document.body.innerHTML =
-      '<div data-component="prompt-input" contenteditable="true" role="textbox"></div>';
-  });
-
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  it("should return false when input not found", () => {
-    document.body.innerHTML = "";
-    expect(insertText("hello")).toBe(false);
-  });
-
-  it("should call execCommand with insertText", () => {
-    const result = insertText("hello world");
-    expect(result).toBe(true);
-    expect(document.execCommand).toHaveBeenCalledWith("insertText", false, "hello world");
-  });
-
-  it("should dispatch input event", () => {
-    let eventCount = 0;
-    const input = document.querySelector('[data-component="prompt-input"]') as HTMLElement;
-    input.addEventListener("input", () => {
-      eventCount++;
-    });
-
-    insertText("test text");
-    expect(eventCount).toBeGreaterThanOrEqual(1);
-  });
-});
-
-describe("submitPrompt", () => {
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  it("should return false when submit button not found", () => {
-    expect(submitPrompt()).toBe(false);
-  });
-
-  it("should click submit button when found", () => {
-    let clicked = false;
-    const btn = document.createElement("button");
-    btn.setAttribute("data-action", "prompt-submit");
-    btn.addEventListener("click", () => {
-      clicked = true;
-    });
-    document.body.appendChild(btn);
-
-    expect(submitPrompt()).toBe(true);
-    expect(clicked).toBe(true);
-  });
-});
-
-describe("insertText into question textarea", () => {
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  it("should return false when question textarea not found", () => {
-    expect(insertText("hello", "question")).toBe(false);
-  });
-
-  it("should insert text into textarea at cursor position", () => {
-    const textarea = document.createElement("textarea");
-    textarea.setAttribute("data-slot", "question-custom-input");
-    textarea.value = "hello world";
-    textarea.selectionStart = 6;
-    textarea.selectionEnd = 11;
-    document.body.appendChild(textarea);
-
-    const result = insertText("there", "question");
-    expect(result).toBe(true);
-    expect(textarea.value).toBe("hello there");
-    expect(textarea.selectionStart).toBe(11);
-  });
-
-  it("should dispatch input event", () => {
-    let eventCount = 0;
-    const textarea = document.createElement("textarea");
-    textarea.setAttribute("data-slot", "question-custom-input");
-    textarea.value = "";
-    textarea.addEventListener("input", () => {
-      eventCount++;
-    });
-    document.body.appendChild(textarea);
-
-    insertText("test", "question");
-    expect(eventCount).toBeGreaterThanOrEqual(1);
+      '<div><textarea data-slot="question-custom-input">Existing</textarea></div>';
+    const snapshot = target("question");
+    const textarea = snapshot.editor as HTMLTextAreaElement;
+    textarea.setSelectionRange(0, 8);
+    const input = vi.fn();
+    textarea.addEventListener("input", input);
+    expect(insertText("answer", snapshot)).toBe(true);
+    expect(textarea.value).toBe("Existing answer");
+    expect(input).toHaveBeenCalledTimes(1);
+    expect(submitPrompt(snapshot)).toBe(false);
+    expect(captureTarget()).toBeNull();
   });
 });

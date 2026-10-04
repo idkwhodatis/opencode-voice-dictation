@@ -17,11 +17,11 @@ Desync (bumping only one file) = userscript managers (Tampermonkey/Violentmonkey
 
 ## Dist deploy
 
-The `dist` branch is the **only** distribution channel for the userscript. Deploy happens via `deploy.yml` (`peaceiris/actions-gh-pages@v4`) on push to `main`. GitHub Releases were removed (PR#37, ADR-0005). `@updateURL`/`@downloadURL` point to raw files on the `dist` branch — bumping `@version` + deploying to `dist` is sufficient for auto-update.
+This fork distributes committed `dist/` artifacts on `master`. Install/update URLs must point to `idkwhodatis/opencode-voice-dictation/master/dist/`. Run `npm run build` before committing. Read-only CI runs the aggregate checks and verifies `git diff --exit-code -- dist/`. The upstream deployment workflow is intentionally removed; see ADR 0008.
 
 ## `@icon`
 
-`vite.config.ts` `userscript.icon` → `main/assets/icon.png` (128×128 PNG RGBA). Do NOT delete `assets/icon.png` and do NOT change the path without editing both the file location and the `icon` URL in sync.
+`vite.config.ts` `userscript.icon` → `master/assets/icon.png` (128×128 PNG RGBA). Do NOT delete `assets/icon.png` and do NOT change the path without editing both the file location and the `icon` URL in sync.
 
 ## Composer selectors (brief)
 
@@ -42,7 +42,7 @@ Coverage thresholds: 60%.
 
 ## src/ structure
 
-- `index.ts` — entry, polling init
+- `index.ts` — entry; `app.ts` — settings and cancellable dictation lifecycle
 - `audio.ts` — `MediaRecorder` (webm/opus)
 - `transcribe.ts` — `GM_xmlhttpRequest` to `config.endpoint`
 - `config.ts` — `GM_getValue`/`GM_setValue`, 7 menu commands
@@ -53,4 +53,4 @@ Coverage thresholds: 60%.
 
 ## Tests
 
-Vitest + `happy-dom`. The `$` module (vite-plugin-monkey's `GM_*` alias) is mocked at `tests/__mocks__/$/index.ts` via vitest `resolve.alias`. Coverage excludes `index.ts`, `ui.ts`, `audio.ts`, `types.ts`.
+Vitest + `happy-dom`. The `$` module (vite-plugin-monkey's `GM_*` alias) is mocked at `tests/__mocks__/$/index.ts` via vitest `resolve.alias`. Coverage excludes `index.ts`, `ui.ts`, `audio.ts`, `types.ts`; they still have focused lifecycle tests. Chromium tests use only synthetic audio and a mocked endpoint. Run `npm run check` for the aggregate suite (install Playwright Chromium first).

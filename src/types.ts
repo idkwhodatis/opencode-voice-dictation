@@ -1,4 +1,4 @@
-export type DictationState = "idle" | "recording" | "processing";
+export type DictationState = "idle" | "starting" | "recording" | "processing";
 
 export interface AppConfig {
   groqApiKey: string;

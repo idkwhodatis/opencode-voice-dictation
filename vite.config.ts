@@ -7,20 +7,28 @@ export default defineConfig({
       entry: "src/index.ts",
       userscript: {
         name: "OpenCode Voice Dictation",
-        namespace: "https://github.com/slaid098/opencode-voice-dictation",
-        version: "1.0.5",
+        namespace: "https://github.com/idkwhodatis/opencode-voice-dictation",
+        version: "1.1.0",
         description:
           "Voice dictation for OpenCode web using Whisper (Groq API) - works on PC and mobile",
         author: "slaid098",
-        match: ["*://*/*"],
-        grant: ["GM_xmlhttpRequest", "GM_getValue", "GM_setValue", "GM_registerMenuCommand"],
+        // Reserved non-resolving host: users explicitly add their own URL in User matches.
+        match: ["https://opencode.invalid/*"],
+        noframes: true,
+        grant: [
+          "GM_xmlhttpRequest",
+          "GM_getValue",
+          "GM_setValue",
+          "GM_registerMenuCommand",
+          "window.onurlchange",
+        ],
         connect: ["*"],
         "run-at": "document-idle",
-        icon: "https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/main/assets/icon.png",
+        icon: "https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/assets/icon.png",
         updateURL:
-          "https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.meta.js",
+          "https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.meta.js",
         downloadURL:
-          "https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js",
+          "https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js",
       },
       build: {
         fileName: "opencode-voice-dictation.user.js",

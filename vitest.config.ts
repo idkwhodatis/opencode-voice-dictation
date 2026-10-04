@@ -22,6 +22,7 @@ export default defineConfig({
       exclude: [
         "tests/**",
         "src/index.ts",
+        "playwright.config.ts",
         "src/ui.ts",
         "src/audio.ts",
         "src/types.ts",

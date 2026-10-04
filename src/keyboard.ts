@@ -17,7 +17,15 @@ export function setupKeyboardShortcut(callback: () => void, combo = "ctrl+space"
   const needsShift = parts.includes("shift");
 
   const handler = (e: KeyboardEvent) => {
-    if (e.key.toLowerCase() === key && e.ctrlKey === needsCtrl && e.shiftKey === needsShift) {
+    if (
+      !e.repeat &&
+      !e.isComposing &&
+      !e.altKey &&
+      !e.metaKey &&
+      e.key.toLowerCase() === key &&
+      e.ctrlKey === needsCtrl &&
+      e.shiftKey === needsShift
+    ) {
       e.preventDefault();
       callback();
     }

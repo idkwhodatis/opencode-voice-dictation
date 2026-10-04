@@ -3,7 +3,12 @@ import type { AppConfig, TranscriptionResult } from "./types.js";
 
 export function buildFormData(audioBlob: Blob, config: AppConfig): FormData {
   const formData = new FormData();
-  formData.append("file", audioBlob, "audio.webm");
+  const extension = audioBlob.type.includes("mp4")
+    ? "mp4"
+    : audioBlob.type.includes("ogg")
+      ? "ogg"
+      : "webm";
+  formData.append("file", audioBlob, `audio.${extension}`);
   formData.append("model", config.model);
   formData.append("response_format", "text");
   formData.append("temperature", String(config.temperature));
@@ -16,7 +21,7 @@ export function buildFormData(audioBlob: Blob, config: AppConfig): FormData {
   return formData;
 }
 
-export function parseErrorResponse(status: number, body: string): string {
+export function parseErrorResponse(status: number, _body: string): string {
   if (status === 401) {
     return "Invalid API key. Check your Groq API key in settings.";
   }
@@ -26,48 +31,71 @@ export function parseErrorResponse(status: number, body: string): string {
   if (status >= 500) {
     return "Groq server error. Please try again later.";
   }
-  try {
-    const error = JSON.parse(body);
-    return error?.error?.message ?? `Error ${status}`;
-  } catch {
-    return `Error ${status}: ${body}`;
-  }
+  // Do not echo untrusted endpoint responses into the page (they can contain secrets).
+  return `Transcription failed (HTTP ${status}). Check endpoint settings.`;
 }
 
-export function transcribe(audioBlob: Blob, config: AppConfig): Promise<TranscriptionResult> {
+export function transcribe(
+  audioBlob: Blob,
+  config: AppConfig,
+  signal?: AbortSignal,
+): Promise<TranscriptionResult> {
   return new Promise((resolve, reject) => {
     if (!config.groqApiKey) {
       reject(new Error("Groq API key not set. Use the Tampermonkey/Violentmonkey menu to set it."));
       return;
     }
-
-    if (audioBlob.size === 0) {
-      reject(new Error("No audio recorded. Please try again."));
+    if (audioBlob.size === 0 || audioBlob.size > 25 * 1024 * 1024) {
+      reject(
+        new Error(
+          audioBlob.size === 0
+            ? "No audio recorded. Please try again."
+            : "Recording exceeds 25 MB. Record a shorter clip.",
+        ),
+      );
       return;
     }
-
-    const formData = buildFormData(audioBlob, config);
-
-    GM_xmlhttpRequest({
-      method: "POST",
-      url: config.endpoint,
-      headers: {
-        Authorization: `Bearer ${config.groqApiKey}`,
-      },
-      data: formData,
-      onload: (response) => {
-        if (response.status === 200) {
-          resolve({ text: response.responseText.trim() });
-        } else {
-          reject(new Error(parseErrorResponse(response.status, response.responseText)));
-        }
-      },
-      onerror: () => {
-        reject(new Error("Network error: could not reach Groq API"));
-      },
-      ontimeout: () => {
-        reject(new Error("Request timeout: Groq API did not respond"));
-      },
-    });
+    if (signal?.aborted) {
+      reject(new Error("Transcription cancelled"));
+      return;
+    }
+    let settled = false;
+    let request: { abort: () => void } | undefined;
+    const finish = (error?: string, text = "") => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      if (error) reject(new Error(error));
+      else resolve({ text });
+    };
+    const abort = () => {
+      finish("Transcription cancelled");
+      request?.abort();
+    };
+    // Keep a local watchdog too: some userscript/browser modes ignore timeout.
+    const timer = setTimeout(() => {
+      finish("Request timeout: Groq API did not respond");
+      request?.abort();
+    }, 60000);
+    signal?.addEventListener("abort", abort, { once: true });
+    try {
+      request = GM_xmlhttpRequest({
+        method: "POST",
+        url: config.endpoint,
+        timeout: 60000,
+        headers: { Authorization: `Bearer ${config.groqApiKey}` },
+        data: buildFormData(audioBlob, config),
+        onload: (response) => {
+          if (response.status === 200) finish(undefined, response.responseText.trim());
+          else finish(parseErrorResponse(response.status, response.responseText));
+        },
+        onerror: () => finish("Network error: could not reach Groq API"),
+        ontimeout: () => finish("Request timeout: Groq API did not respond"),
+        onabort: () => finish("Transcription cancelled"),
+      });
+    } catch {
+      finish("Could not start transcription request. Check userscript permissions.");
+    }
   });
 }

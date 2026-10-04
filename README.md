@@ -31,7 +31,7 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 | ⚡ Auto-submit | Sends transcription to the agent after dictation (toggleable) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` via Groq API |
 | 📱 Mobile via Firefox | Firefox supports extensions; mobile Chrome doesn't |
-| ✅ Tested on 1.18.8 | Older versions via fallback selectors; needs "New UI" toggle |
+| ✅ Current V2 contract | Source-verified at OpenCode `907b3bc`; mocked Chromium tests (see below) |
 | 🔄 Auto-update | Updates itself via `@updateURL` — no manual reinstall |
 | ⌨️ Ctrl+Space | Desktop hotkey to start/stop recording |
 <!-- features-en:end -->
@@ -40,8 +40,13 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/)
 2. Get a key at [console.groq.com/keys](https://console.groq.com/keys)
-3. Open the [script install link](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js) — it installs into Tampermonkey
-4. Tampermonkey menu → **Set Groq API Key** → paste `gsk_...`
+3. Open the [script install link](https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js) — it installs into Tampermonkey
+4. **Important: scope the script before use.** Tampermonkey Dashboard → this script → **Settings** → **Includes/Excludes** → **User matches** → **Add**. Add only your own OpenCode URL pattern, such as `https://opencode.example.com/*` or `http://localhost:4096/*`, then **Save** and reload OpenCode. Use your deployment’s real scheme, host, port and path prefix. If needed, change the dashboard Config mode to Advanced to see the controls.
+5. The shipped match is the reserved, non-resolving `https://opencode.invalid/*`. It intentionally runs on no real site until you add your URL. Do not replace it with `*://*/*`, a generic localhost rule, or an all-sites User include. If upgrading, remove old broad User matches/includes and disable the separately installed upstream script.
+6. On the scoped OpenCode page, Tampermonkey menu → **Set Groq API Key**. Enter your own key there, never in this repository. An empty value clears it. **Set Whisper Model**, **Set Language** (empty = automatic, e.g. `zh`), and **Toggle Auto-Submit** use userscript storage and survive refresh/updates.
+7. Auto-submit is **OFF by default**. Click the mic or Ctrl+Space to start/stop; Cancel discards pending dictation. Stopping sends your recording to Groq (or your configured proxy) using your key and may incur Groq charges. Review the appended text before Send. Navigating to another session or replacing the editor cancels the operation.
+
+Microphone access requires HTTPS or localhost and browser permission. The script requests it only when you start recording. The V2 editor preserves existing text, mention nodes and attachments. The generic home screen and disabled child-session composer have no mic until an editable composer appears. [Tampermonkey scope instructions](https://www.tampermonkey.net/faq.php?locale=en#Q103).
 
 ### 🌐 Custom STT Endpoint
 
@@ -55,7 +60,7 @@ Groq may block direct requests from some networks. Point the script at your own 
    }
    ```
 2. Tampermonkey menu → **Set STT Endpoint** → paste `https://your-domain.com/openai/v1/audio/transcriptions`
-3. Requests now go through your proxy. The userscript metadata uses `@connect *`, so any domain is allowed.
+3. Requests now go through your trusted HTTPS proxy, which receives both your recording and API key. The menu asks you to confirm that destination. `@connect *` preserves custom proxy support; it does **not** enable the script on all websites. Page execution remains limited by User matches.
 
 A path prefix is not needed if the domain is dedicated to Groq. The `/groq` variant stays valid for multi-proxy domains — `location /groq/` with a trailing slash strips the prefix.
 
@@ -95,7 +100,7 @@ The prompt biases the model toward the prompt's language. An English prompt with
 | ⚡ Автоотправка | Отправляет транскрипцию агенту после диктовки (опционально) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` через Groq API |
 | 📱 Мобайл через Firefox | Firefox поддерживает расширения; mobile Chrome — нет |
-| ✅ Проверено на 1.18.8 | Старые версии через fallback-селекторы; нужен «New UI» |
+| ✅ V2 | DOM проверен по исходникам OpenCode `907b3bc`; тесты Chromium с моками |
 | 🔄 Автообновление | Обновляется сам через `@updateURL` — без ручной переустановки |
 | ⌨️ Ctrl+Space | Горячая клавиша на десктопе |
 <!-- features-ru:end -->
@@ -104,8 +109,11 @@ The prompt biases the model toward the prompt's language. An English prompt with
 
 1. Установи [Tampermonkey](https://www.tampermonkey.net/)
 2. Получи ключ на [console.groq.com/keys](https://console.groq.com/keys)
-3. Открой [ссылку установки скрипта](https://raw.githubusercontent.com/slaid098/opencode-voice-dictation/dist/opencode-voice-dictation.user.js) — скрипт установится в Tampermonkey
-4. Меню Tampermonkey → **Set Groq API Key** → вставь `gsk_...`
+3. Открой [ссылку установки скрипта](https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js) — скрипт установится в Tampermonkey
+4. Dashboard → скрипт → **Settings → Includes/Excludes → User matches → Add**: добавь только свой URL OpenCode, например `https://opencode.example.com/*` или `http://localhost:4096/*`. Сохрани и перезагрузи страницу. При необходимости включи Advanced Config mode.
+5. По умолчанию указан несуществующий `https://opencode.invalid/*`: на реальных сайтах скрипт не запускается. Не добавляй `*://*/*`; при обновлении удали старые широкие User matches/includes и отключи отдельную upstream-копию.
+6. На разрешённой странице: меню Tampermonkey → **Set Groq API Key**. Ключ, модель, язык и автоотправка сохраняются в GM storage, не в исходниках. Пустой ключ удаляет его.
+7. Автоотправка по умолчанию **выключена**. Микрофон / Ctrl+Space: старт и стоп; Cancel: отмена. После стопа запись отправляется Groq или выбранному прокси и может тарифицироваться. Текст добавляется в конец, сохраняя упоминания и вложения. Смена сессии отменяет диктовку. Для микрофона нужен HTTPS или localhost и разрешение браузера.
 
 ### 🌐 Кастомный STT endpoint
 
@@ -119,7 +127,7 @@ Groq может блокировать прямые запросы из неко
    }
    ```
 2. Меню Tampermonkey → **Set STT Endpoint** → вставь `https://your-domain.com/openai/v1/audio/transcriptions`
-3. Запросы пойдут через твой прокси. Метаблок юзерскрипта использует `@connect *`, поэтому разрешён любой домен.
+3. Используй только доверенный HTTPS-прокси: он получает запись и API-ключ. Меню запрашивает подтверждение адреса. `@connect *` разрешает сетевые запросы к прокси, но не запуск скрипта на всех сайтах.
 
 Префикс пути не нужен, если домен выделен только под Groq. `/groq`-вариант остаётся валидным для мульти-прокси доменов — `location /groq/` с trailing slash срезает префикс.
 
@@ -142,3 +150,19 @@ Whisper может галлюцинировать на тишине/шуме. **
 ## 💬 Support and contacts / Поддержка и контакты
 
 👉 **[slaid098.dev/support](https://slaid098.dev/support)**
+
+## Development and verification
+
+```sh
+npm ci
+npx playwright install chromium
+npm run check
+```
+
+For a system Chromium, use `CHROMIUM_PATH=/path/to/chromium npm run check`. The aggregate command runs lint, types, dead-code checks, Vitest with coverage, a reproducible userscript build and Chromium tests. CI targets `master` and verifies that committed `dist/` matches source. GitHub forks may require the owner to enable Actions once under the repository's Actions tab.
+
+Covered: lazy/initial composer, new/replaced/switching sessions, duplicate injection, start/stop/cancel (including pending microphone permission and HTTP requests), denied microphone, resource cleanup, HTTP 401/429/5xx, network/timeout, rich-text append and input events, optional Send/Stop guards, pagehide/refresh cleanup, persisted configuration, and inert metadata/unrelated DOM.
+
+Boundary: browser tests use the built script and a source-shaped V2 fixture, with mocked microphone and Groq. No real recording, API key, paid API call, extension installation, live server, Firefox/mobile, or actual Tampermonkey User-match enforcement was exercised. After installing, check the script is absent on an unrelated site, appears on your scoped OpenCode URL, and persists settings after reload. Keep auto-submit off for your first test.
+
+[Source details and decisions](docs/decisions/0008-scoped-v2-dictation.md). Original project by [slaid098](https://github.com/slaid098/opencode-voice-dictation); this fork's install and update files remain on `idkwhodatis/master`.
