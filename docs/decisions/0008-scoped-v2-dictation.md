@@ -16,7 +16,7 @@ OpenCode default `dev` was inspected at
 
 ## Decisions
 
-1. Ship one inert `@match https://opencode.invalid/*` and `@noframes`. Explicit Tampermonkey **User matches** supplies the deployment scope. No all-sites match and no page-detection polling.
+1. Ship one inert `@match https://opencode.invalid/*` and `@noframes`. Explicit Tampermonkey **User matches** supplies a dedicated-host deployment scope. Match rules ignore ports; port-specific localhost uses an anchored **User includes** regular expression instead, with no broad localhost match. No all-sites match and no page-detection polling.
 2. Mount through one mutation observer; track `urlchange` (Tampermonkey), `popstate`, `hashchange`, and DOM replacement. Each recording captures its route, composer and editor. A context change cancels, aborts in-flight transcription and invalidates late callbacks. Never migrate a transcript to a new session.
 3. Append only. Keep mentions and attachments, fire framework-recognized input, use current Send state after a frame. Auto-submit remains OFF by default.
 4. Preserve GM-backed settings and proxy support (`@connect *` controls request destinations, not page execution). Only the user-configured endpoint receives audio/key. New endpoint settings require HTTPS and warn that the proxy receives both. Keys are never placed in source, page DOM, logs or error response echoes.
@@ -34,3 +34,5 @@ Unit/DOM tests mock microphone and requests. Chromium runs the built userscript 
 - [URL-change events](https://www.tampermonkey.net/documentation.php?q=window#api:window.onurlchange)
 - [GM requests, abort and timeout](https://www.tampermonkey.net/documentation.php?q=GM_xmlhttpRequest)
 - [Groq transcription endpoint, models, language and file formats](https://console.groq.com/docs/speech-to-text)
+
+- [Tampermonkey ports are ignored in match rules](https://www.tampermonkey.net/changelog.php?locale=en&more=true&show=gcal)
