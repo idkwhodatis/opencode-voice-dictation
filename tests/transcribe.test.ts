@@ -160,6 +160,18 @@ describe("transcribe", () => {
 });
 
 describe("cancellation and resource limits", () => {
+  it.each([
+    "http://legacy-proxy.example/transcribe",
+    "https://user:password@proxy.example/transcribe",
+    "https://proxy.example/transcribe#secret",
+    "not a URL",
+  ])("rejects an unsafe stored endpoint before transmission: %s", async (endpoint) => {
+    vi.mocked(GM_xmlhttpRequest).mockClear();
+    await expect(transcribe(new Blob(["fixture"]), { ...mockConfig, endpoint })).rejects.toThrow(
+      "Invalid saved endpoint",
+    );
+    expect(GM_xmlhttpRequest).not.toHaveBeenCalled();
+  });
   it("rejects a pre-cancelled request without transmitting", async () => {
     vi.mocked(GM_xmlhttpRequest).mockClear();
     const controller = new AbortController();

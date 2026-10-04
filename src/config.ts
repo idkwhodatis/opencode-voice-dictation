@@ -54,3 +54,14 @@ export function registerMenuCommands(callbacks: {
   GM_registerMenuCommand("Set STT Endpoint", callbacks.onSetEndpoint);
   GM_registerMenuCommand("Set Temperature", callbacks.onSetTemperature);
 }
+
+export function validateEndpoint(value: string): boolean {
+  try {
+    const endpoint = new URL(value);
+    return (
+      endpoint.protocol === "https:" && !endpoint.username && !endpoint.password && !endpoint.hash
+    );
+  } catch {
+    return false;
+  }
+}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenCode Voice Dictation
 // @namespace    https://github.com/idkwhodatis/opencode-voice-dictation
-// @version      1.1.0
+// @version      1.1.1
 // @author       slaid098
 // @description  Voice dictation for OpenCode web using Whisper (Groq API) - works on PC and mobile
 // @icon         https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/assets/icon.png
@@ -164,6 +164,14 @@
     _GM_registerMenuCommand("Set STT Endpoint", callbacks.onSetEndpoint);
     _GM_registerMenuCommand("Set Temperature", callbacks.onSetTemperature);
   }
+  function validateEndpoint(value) {
+    try {
+      const endpoint = new URL(value);
+      return endpoint.protocol === "https:" && !endpoint.username && !endpoint.password && !endpoint.hash;
+    } catch {
+      return false;
+    }
+  }
   const EDITOR_SELECTOR = '[data-component="prompt-input"][contenteditable="true"]';
   const QUESTION_SELECTOR = 'textarea[data-slot="question-custom-input"]:not(:disabled)';
   const COMPOSER_SELECTORS = [
@@ -313,6 +321,14 @@
     return new Promise((resolve, reject) => {
       if (!config.groqApiKey) {
         reject(new Error("Groq API key not set. Use the Tampermonkey/Violentmonkey menu to set it."));
+        return;
+      }
+      if (!validateEndpoint(config.endpoint)) {
+        reject(
+          new Error(
+            "Invalid saved endpoint. Set an HTTPS endpoint without credentials or a fragment."
+          )
+        );
         return;
       }
       if (audioBlob.size === 0 || audioBlob.size > 25 * 1024 * 1024) {
@@ -822,12 +838,7 @@
     }
     const trimmed = url.trim();
     const value = trimmed || DEFAULTS_ENDPOINT;
-    try {
-      const endpoint = new URL(value);
-      if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash) {
-        throw new Error("Invalid endpoint");
-      }
-    } catch {
+    if (!validateEndpoint(value)) {
       ui == null ? void 0 : ui.toast("Use an HTTPS endpoint without credentials or a URL fragment.", true);
       return;
     }
@@ -836,7 +847,7 @@
     ))
       return;
     setConfig({ endpoint: value });
-    ui == null ? void 0 : ui.toast(`Endpoint set to ${value}`);
+    ui == null ? void 0 : ui.toast("Endpoint saved");
   }
   function promptForTemperature() {
     const current = getConfig().temperature;

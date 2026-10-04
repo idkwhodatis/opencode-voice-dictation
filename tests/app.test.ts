@@ -194,6 +194,17 @@ describe("dictation flow with mocked microphone and Groq", () => {
     idle();
     expect(mocks.cancel).toHaveBeenCalledTimes(1);
   });
+  it("persists endpoint settings without copying URL tokens into the page", () => {
+    vi.spyOn(window, "prompt").mockReturnValue(
+      "https://proxy.example/transcribe?token=TEST_SECRET",
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const configure = mocks.menu.mock.calls.find(([name]) => name === "Set STT Endpoint")?.[1];
+    configure();
+    expect(mocks.store.endpoint).toBe("https://proxy.example/transcribe?token=TEST_SECRET");
+    expect(document.body.textContent).not.toContain("TEST_SECRET");
+    expect(document.querySelector("#opencode-voice-toast")?.textContent).toBe("Endpoint saved");
+  });
   it("does not request mic or API on unrelated pages or when key is missing", async () => {
     document.body.innerHTML = "<textarea></textarea>";
     await flush();

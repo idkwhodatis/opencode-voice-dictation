@@ -6,6 +6,7 @@ import {
   registerMenuCommands,
   setConfig,
   validateApiKey,
+  validateEndpoint,
 } from "./config.js";
 
 const DEFAULTS_ENDPOINT = DEFAULTS.endpoint;
@@ -184,12 +185,7 @@ function promptForEndpoint(): void {
   }
   const trimmed = url.trim();
   const value = trimmed || DEFAULTS_ENDPOINT;
-  try {
-    const endpoint = new URL(value);
-    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash) {
-      throw new Error("Invalid endpoint");
-    }
-  } catch {
+  if (!validateEndpoint(value)) {
     ui?.toast("Use an HTTPS endpoint without credentials or a URL fragment.", true);
     return;
   }
@@ -201,7 +197,7 @@ function promptForEndpoint(): void {
   )
     return;
   setConfig({ endpoint: value });
-  ui?.toast(`Endpoint set to ${value}`);
+  ui?.toast("Endpoint saved");
 }
 
 function promptForTemperature(): void {

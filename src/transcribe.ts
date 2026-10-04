@@ -1,4 +1,5 @@
 import { GM_xmlhttpRequest } from "$";
+import { validateEndpoint } from "./config.js";
 import type { AppConfig, TranscriptionResult } from "./types.js";
 
 export function buildFormData(audioBlob: Blob, config: AppConfig): FormData {
@@ -43,6 +44,14 @@ export function transcribe(
   return new Promise((resolve, reject) => {
     if (!config.groqApiKey) {
       reject(new Error("Groq API key not set. Use the Tampermonkey/Violentmonkey menu to set it."));
+      return;
+    }
+    if (!validateEndpoint(config.endpoint)) {
+      reject(
+        new Error(
+          "Invalid saved endpoint. Set an HTTPS endpoint without credentials or a fragment.",
+        ),
+      );
       return;
     }
     if (audioBlob.size === 0 || audioBlob.size > 25 * 1024 * 1024) {
