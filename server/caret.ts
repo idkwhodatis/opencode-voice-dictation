@@ -169,6 +169,12 @@ export function insertAtCaret(text: string, target: InputTarget, bookmark: Bookm
     return { inserted: true, fallback: false };
   }
   if (position.kind !== "rich") return append(true);
+  // Focusing can synchronously rerender an editor's children, even with identical
+  // HTML. Resolve the immutable bookmark only AFTER focus, never keep a live range
+  // across that boundary.
+  editor.focus();
+  if (!isCurrentTarget(target)) return { inserted: false, fallback: false };
+  if (snapshot(target) !== bookmark.snapshot) return append(true);
   const start = resolve(editor, position.start);
   const end = resolve(editor, position.end);
   if (!start || !end) return append(true);
@@ -182,9 +188,6 @@ export function insertAtCaret(text: string, target: InputTarget, bookmark: Bookm
   const addition = spaced(text,
     adjacentCharacter(editor, start, position.start.offset, true),
     adjacentCharacter(editor, end, position.end.offset, false));
-  editor.focus();
-  if (!isCurrentTarget(target)) return { inserted: false, fallback: false };
-  if (snapshot(target) !== bookmark.snapshot) return append(true);
   const selection = window.getSelection();
   if (!selection) return { inserted: false, fallback: false };
   selection.removeAllRanges();
