@@ -353,7 +353,8 @@ export function setupUI(callbacks: {
     if (submit !== nextSubmit) {
       resizeObserver.disconnect();
       submit = nextSubmit;
-      if (submit) resizeObserver.observe(submit);
+      // Padding can change the outer size while the content box stays 16px.
+      if (submit) resizeObserver.observe(submit, { box: "border-box" });
     }
     controls = null;
     if (!target || !parent) return;

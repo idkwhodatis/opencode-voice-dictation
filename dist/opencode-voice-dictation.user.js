@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenCode Voice Dictation
 // @namespace    https://github.com/idkwhodatis/opencode-voice-dictation
-// @version      1.1.3
+// @version      1.1.4
 // @author       slaid098
 // @description  Voice dictation for OpenCode web using Whisper (Groq API) - works on PC and mobile
 // @icon         https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/assets/icon.png
@@ -689,7 +689,7 @@
       if (submit !== nextSubmit) {
         resizeObserver.disconnect();
         submit = nextSubmit;
-        if (submit) resizeObserver.observe(submit);
+        if (submit) resizeObserver.observe(submit, { box: "border-box" });
       }
       controls = null;
       if (!target || !parent) return;
