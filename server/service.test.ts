@@ -61,7 +61,7 @@ describe("SQLite settings", () => {
     { temperature: NaN }, { temperature: -1 }, { whisperPrompt: "x".repeat(2001) },
     { apiKey: "secret" }, { endpoint: "https://evil.test" }, { keyFile: "/etc/passwd" },
     JSON.parse('{"__proto__":{"polluted":true}}'),
-  ])("rejects invalid or server-only settings: %j", (patch) => {
+  ].map((patch) => [patch]))("rejects invalid or server-only settings: %j", (patch) => {
     expect(() => validatePatch(patch)).toThrow();
   });
   test("rejects a newer database rather than resetting it", () => {
