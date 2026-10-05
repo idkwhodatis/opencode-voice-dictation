@@ -45,12 +45,12 @@ test.beforeEach(async ({ page }, testInfo) => {
           .replaceAll('data-action="prompt-attach"', 'data-action="composer-attach"')
           .replaceAll('data-action="prompt-submit"', 'data-action="composer-submit"')
           .replace('data-icon="arrow-up"', 'data-component="icon-button-v2"')
-          .replace(/<path[^>]+\/>/, '<use href="#opencode-v2-icon-arrow-up"></use>')
+          .replace(/<path d="M8 13V3[^>]+\/>/, '<use href="#opencode-v2-icon-arrow-up"></use>')
           .replace(
             '<div data-component="tooltip-v2-trigger">',
             '<div data-slot="composer-actions"><div data-component="tooltip-v2-trigger">',
           )
-          .replace("</button></div>", "</button></div></div>")
+          .replace("</button></div>\n  </div>", "</button></div></div>\n  </div>")
       : fixture;
   await page.route("**/*", (route) => route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("https://opencode-fixture.test/project/session/first");
