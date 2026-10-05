@@ -1,4 +1,9 @@
 # 🚀 opencode-voice-dictation
+
+## 🎤 [安装此 Fork 的语音输入脚本 / Install this fork](https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js)
+
+安装后请在 Tampermonkey 中仅允许自己的 OpenCode 网址；默认不会在任何真实网站运行。详见下方 [Quick Start](#-quick-start)。
+
 ![Cover](assets/cover.png)
 <!-- tagline-en:start -->
 > Voice dictation for OpenCode web — mic button via Whisper (Groq API)
