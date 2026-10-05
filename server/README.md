@@ -1,6 +1,12 @@
 # Server-injected edition: Caddy + Bun
 
-Voice input in **any modern browser on any device**, without an extension, Tampermonkey, or an OpenCode fork. The existing userscript and its committed `dist/` remain unchanged. This is a separate distribution, version 0.1.0.
+Voice input in **any modern browser on any device**, without an extension, Tampermonkey, or an OpenCode fork. The existing userscript and its committed `dist/` remain unchanged. This is a separate distribution, version 0.2.0.
+
+## Two ways to finish a recording
+
+**Stop and review** (square) inserts an editable transcript into OpenCode's normal composer. Inspect it, modify it, delete it, or press OpenCode's Send button yourself. **Transcribe and send** (up arrow) inserts the transcript and sends the entire composer draft through OpenCode's verified native Send button, including any existing text and attachments.
+
+Stop, Ctrl+Space, and the recording-duration limit always leave a draft for review. Direct send is an explicit choice for that recording only; an old `autoSubmit: true` setting cannot override Stop. If Send is unavailable or you change the draft, the text stays for manual review. See [recording actions, safety behavior, and upgrade notes](VOICE_ACTIONS.md).
 
 Bun serves the injected browser bundle, proxies transcription requests, reads the provider key from a private local file, and persists non-secret settings using built-in `bun:sqlite`. There are **no runtime npm dependencies and no Node server**. Keep the full repository checkout: the browser build imports the existing `src/audio.ts`, `src/insert.ts`, `src/ui.ts`, and keyboard code rather than copying their compatibility logic.
 
@@ -72,7 +78,7 @@ systemctl --user enable --now opencode-voice
 journalctl --user -u opencode-voice -n 30 --no-pager
 ```
 
-The service file assumes the checkout is at `~/repos/opencode-voice-dictation` and Bun is `~/.bun/bin/bun`; adjust those two paths when necessary. It reads `~/.config/opencode-voice/voice.env`. Bun binds **only `127.0.0.1:4097`**; do not open this port in UFW. For unattended user services, enable user lingering if it is not already configured. Ordering after `opencode-server.service` does not make Bun depend on an OpenCode-specific installation layout.
+The service file assumes the checkout is at `~/repos/opencode-voice-dictation` and Bun is `~/.bun/bin/bun`; adjust those two paths when necessary. It reads `~/.config/opencode-voice/voice.env`. Bun binds to `127.0.0.1:4097` by default; do not expose this port publicly. For unattended user services, enable user lingering if it is not already configured. Ordering after `opencode-server.service` does not make Bun depend on an OpenCode-specific installation layout.
 
 For a foreground run instead, copy the example to `server/.env`, edit it, and run `cd server && bun run start`. `.env`, databases, and local secret/build directories are gitignored. Never commit real credentials.
 
@@ -107,7 +113,7 @@ The examples reserve `/voice` at the origin root. `PUBLIC_ORIGIN` is not a subpa
 
 Open the usual OpenCode HTTPS address in any modern browser. The microphone appears beside the composer controls, with a settings gear linking to `/voice/`. Because the injected code is served as part of the site, no userscript or browser extension is required. The browser/device must support the standard microphone/media APIs used by the app and must trust the site's certificate. Plain LAN HTTP is not suitable for microphone access.
 
-Tap once to record and again to transcribe. The existing adapters handle both supported V2/beta composer dialects, questions, append-only insertion, and verified Send-button checks. Recording, pending permission requests, and transcription are cancelled on session/input changes, cancellation, or page exit. Ctrl+Space remains available on desktop. Disable the userscript on this origin when using the injected edition; the shared initialization marker prevents two active instances, but the first one loaded would otherwise win.
+Tap the microphone to record. While recording, choose the square **Stop and review** button or the up-arrow **Transcribe and send** button. The settings gear is hidden while recording to leave room for the send action. Question inputs only offer review. The existing adapters handle both supported V2/beta composer dialects, questions, append-only insertion, and verified Send-button checks. Recording, pending permission requests, and transcription are cancelled on session/input changes, cancellation, or page exit. Ctrl+Space remains available on desktop and always stops for review. Disable the userscript on this origin when using the injected edition; the shared initialization marker prevents two active instances, but the first one loaded would otherwise win.
 
 Upstream CSP is preserved, not disabled. A restrictive policy must permit the same-origin voice script/fetches and the shared UI's dynamic styles. A nonce-only policy may need an explicit integration adjustment. Also check that no proxy-level `Permissions-Policy` disables the microphone. A PWA with stale cached HTML may need a full reload; the injector serves modified HTML with `Cache-Control: no-store`.
 
@@ -124,7 +130,7 @@ curl -fsS http://127.0.0.1:4097/voice/config \
 curl -fsS -X PATCH http://127.0.0.1:4097/voice/config \
   -H "X-OCVD-Proxy-Token: $VOICE_PROXY_TOKEN" \
   -H 'X-OCVD-Request: 1' -H 'Content-Type: application/json' \
-  -d '{"model":"whisper-large-v3","language":"","whisperPrompt":"OpenCode, Bun","temperature":0,"autoSubmit":false}'
+  -d '{"model":"whisper-large-v3","language":"","whisperPrompt":"OpenCode, Bun","temperature":0}'
 
 # Send raw recorded audio; the Bun backend creates the provider's multipart form.
 curl -fsS http://127.0.0.1:4097/voice/transcribe \
@@ -133,7 +139,7 @@ curl -fsS http://127.0.0.1:4097/voice/transcribe \
   --data-binary @recording.webm
 ```
 
-`GET /voice/config` returns `{settings, apiKeyConfigured, maxAudioBytes, maxRecordingSeconds}`. `PATCH /voice/config` accepts only `model`, `language`, `whisperPrompt`, `temperature`, and `autoSubmit`. `POST /voice/transcribe` returns `{text, autoSubmit}`. The model is a validated ID, not a hard-coded two-model whitelist, to support compatible providers. Empty language means automatic detection. Unknown fields and invalid types are rejected atomically; settings are shared across devices, not per-user. Concurrent writes to the same field are last-writer-wins.
+`GET /voice/config` returns `{settings, apiKeyConfigured, maxAudioBytes, maxRecordingSeconds}`. `PATCH /voice/config` accepts only `model`, `language`, `whisperPrompt`, `temperature`, and the legacy `autoSubmit` field. `POST /voice/transcribe` retains `{text, autoSubmit}` for backward compatibility. **The injected browser client ignores `autoSubmit`; delivery is chosen with the recording buttons.** No database migration is required. The model is a validated ID, not a hard-coded two-model whitelist, to support compatible providers. Empty language means automatic detection. Unknown fields and invalid types are rejected atomically; settings are shared across devices, not per-user. Concurrent writes to the same field are last-writer-wins.
 
 ## Limits and storage
 
@@ -158,6 +164,6 @@ npx playwright install chromium
 npx playwright test --config server/playwright.config.ts
 ```
 
-The dedicated read-only `Bun voice server` workflow runs native Bun tests, strict type checking, mobile-viewport Chromium tests with synthetic audio, the existing userscript suite/build, and stock Caddy configuration validation. Root Biome and Vitest coverage remain scoped away from this separate Bun distribution; the original userscript coverage thresholds are unchanged. No test calls a real paid speech API or uses your credentials. A real browser/device microphone and your existing Caddy installation still require a deployment smoke test.
+The dedicated read-only `Bun voice server` workflow runs native Bun tests, strict type checking, mobile-viewport Chromium tests with synthetic audio, the existing userscript suite/build, and stock Caddy configuration validation. Browser regressions cover review/edit/delete, native input-event activation, delayed Send readiness, both composer dialects, duplicate clicks, unavailable/Stop/shell buttons, edits during transcription, cancellation, session switches, empty/error results, recording limits, questions, and settings persistence. Root Biome and Vitest coverage remain scoped away from this separate Bun distribution; the original userscript coverage thresholds are unchanged. No test calls a real paid speech API or uses your credentials. A real browser/device microphone and your existing Caddy installation still require a deployment smoke test.
 
 Reference documentation: [Bun HTTP](https://bun.com/docs/runtime/http/server), [Bun SQLite](https://bun.com/docs/runtime/sqlite), [Groq speech-to-text](https://console.groq.com/docs/speech-to-text), [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [optional replacement module](https://github.com/caddyserver/replace-response).

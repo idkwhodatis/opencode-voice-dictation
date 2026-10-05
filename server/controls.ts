@@ -14,7 +14,7 @@ export function createServerControls(onSend: () => void) {
       border: none; flex-shrink: 0; cursor: pointer;
       background: var(--color-accent, #4a9eff); color: #fff;
     }
-    .ocvd-send[hidden] { display: none; }
+    .ocvd-send[hidden], .ocvd-settings[hidden] { display: none; }
     .ocvd-send:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
     .ocvd-send > svg { width: var(--ocvd-icon-width, 16px); height: var(--ocvd-icon-height, 16px); }
     .ocvd-settings { display: inline-flex; align-items: center; justify-content: center;
@@ -24,8 +24,9 @@ export function createServerControls(onSend: () => void) {
 
   function sync() {
     for (const controls of document.querySelectorAll<HTMLElement>(".ocvd-container")) {
-      if (!controls.querySelector(".ocvd-settings")) {
-        const link = document.createElement("a");
+      let link = controls.querySelector<HTMLAnchorElement>(".ocvd-settings");
+      if (!link) {
+        link = document.createElement("a");
         link.className = "ocvd-settings";
         link.href = "/voice/";
         link.target = "_blank";
@@ -35,6 +36,9 @@ export function createServerControls(onSend: () => void) {
         link.setAttribute("aria-label", link.title);
         controls.prepend(link);
       }
+      // The send action uses the settings gear's space while recording on narrow screens.
+      const hideSettings = state !== "idle";
+      if (link.hidden !== hideSettings) link.hidden = hideSettings;
       const stop = controls.querySelector<HTMLButtonElement>(".ocvd-btn");
       if (!stop) continue;
       const disabled = state === "starting" || state === "processing";

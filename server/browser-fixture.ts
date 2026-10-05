@@ -9,7 +9,9 @@ const store = openSettings(":memory:");
 let delay = 0;
 let calls = 0;
 let lastModel: FormDataEntryValue | null = null;
-const shell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+const shell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>button[data-action]{width:28px;height:28px;padding:4px}button svg{width:18px;height:18px}</style>
+</head><body>
 <form data-component="composer">
   <div data-component="composer-editor" contenteditable="true"><span contenteditable="false" data-mention="true">@context</span> existing</div>
   <div style="display:flex;align-items:center">
