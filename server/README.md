@@ -12,6 +12,7 @@ Android Chrome → authenticated HTTPS Caddy
   /voice/            → Bun :4097 (mobile-friendly settings page)
   /voice/config      → Bun :4097 (GET / PATCH → SQLite)
   /voice/transcribe  → Bun :4097 (audio → provider → transcript)
+  /sw.js             → the repo's no-op worker (replaces OpenCode's PWA worker)
   HTML navigations   → Bun :4097 → OpenCode :4096 (HTML injection only)
   everything else    → OpenCode :4096 directly (including streams/WebSockets)
 ```
@@ -19,6 +20,8 @@ Android Chrome → authenticated HTTPS Caddy
 **Stock Caddy cannot perform arbitrary response-body replacement by itself.** The supplied `Caddyfile` uses the already-needed Bun service to inject a script into HTML navigation responses. No custom Caddy build is required. `Caddyfile.replace` is an alternative for installations that already use the `github.com/caddyserver/replace-response` module; in that variant Caddy itself performs the replacement and Bun handles only `/voice/*`.
 
 The injector uses an HTML parser, preserves upstream CSP and authentication headers, avoids compressed-body replacement, and removes stale validators/lengths from modified HTML. It does not fork, rebuild, or write into OpenCode. Its browser script still depends on OpenCode's composer DOM, so upstream UI changes can require updating this repository's shared adapters.
+
+OpenCode's own Workbox service worker must not stay in control. It serves the cached app shell for every in-scope navigation, and its denylist covers `/api`, `/auth` and asset prefixes but not `/voice` — so it hides both the injected microphone and the settings page, no matter what headers the injector sends. The sample therefore serves the repository's [`sw.js`](sw.js) for `GET /sw.js`; on its next update check the browser replaces the old worker with this no-op one, after which every request reaches the network. Adjust the handler's `root` to your checkout and keep it on the OpenCode origin.
 
 ## 1. Configure Bun and the secret file
 
@@ -51,6 +54,7 @@ Edit `voice.env`. In particular:
 | `GROQ_API_KEY_FILE` | Absolute path to the key file. The file is reread for each request, so key rotation needs no restart. |
 | `VOICE_PROXY_TOKEN` | A random token shared by Caddy and Bun. Generate with `openssl rand -hex 32`. Do not use the example placeholder. |
 | `VOICE_DB_PATH` | SQLite settings file; defaults to `~/.local/state/opencode-voice/settings.sqlite`. |
+| `VOICE_HOST` | Bind address; defaults to `127.0.0.1`. Set `0.0.0.0` when the reverse proxy runs in a container and reaches the host through a LAN address. The proxy token remains required. |
 | `OPENCODE_UPSTREAM` | Your OpenCode server origin; defaults to `http://127.0.0.1:4096`. |
 | `VOICE_STT_ENDPOINT` | Full transcription endpoint; defaults to Groq. HTTPS is required except for an explicitly configured loopback HTTP provider. |
 

@@ -42,6 +42,9 @@ export async function startServer() {
   const statePath = resolve(Bun.env.VOICE_DB_PATH ?? join(homedir(), ".local/state/opencode-voice/settings.sqlite"));
   mkdirSync(dirname(statePath), { recursive: true, mode: 0o700 });
   const port = integer("VOICE_PORT", 4097, 1, 65535);
+  // VOICE_HOST allows listening beyond loopback, e.g. when the reverse proxy
+  // runs in a container and reaches the host through a LAN address.
+  const hostname = Bun.env.VOICE_HOST?.trim() || "127.0.0.1";
   const maxAudioBytes = integer("VOICE_MAX_AUDIO_MB", 20, 1, 100) * 1024 * 1024;
   const assets = new Map([
     ["/voice/voice.js", { body: await buildBrowser(), type: "text/javascript; charset=utf-8" }],
@@ -65,13 +68,13 @@ export async function startServer() {
       requestsPerMinute: integer("VOICE_REQUESTS_PER_MINUTE", 10, 1, 1000),
     });
     const server = Bun.serve({
-      hostname: "127.0.0.1", port,
+      hostname, port,
       maxRequestBodySize: maxAudioBytes,
       idleTimeout: 0, // Individual uploads/provider calls have explicit deadlines.
       fetch: handler,
       error: () => Response.json({ error: "Voice service request failed." }, { status: 500 }),
     });
-    console.info(`OpenCode voice listening on http://127.0.0.1:${server.port}`);
+    console.info(`OpenCode voice listening on http://${hostname}:${server.port}`);
     return { server, async stop() { await server.stop(); settings.close(); } };
   } catch (error) { settings.close(); throw error; }
 }

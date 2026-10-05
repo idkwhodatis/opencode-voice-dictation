@@ -8,8 +8,19 @@
 		opencode {$VOICE_AUTH_HASH}
 	}
 
+	# Replace OpenCode's Workbox service worker with this repository's no-op
+	# worker. The stock worker serves its cached app shell for every in-scope
+	# navigation and its denylist does not cover /voice, so it would hide both
+	# the injected microphone and the settings page. Adjust the root to your
+	# checkout.
+	handle /sw.js {
+		root * /path/to/opencode-webui-voice-input/server
+		header Cache-Control "no-cache"
+		file_server
+	}
+
 	handle /voice {
-		redir /voice/ 308
+		redir * /voice/ 308
 	}
 	handle /voice/* {
 		reverse_proxy 127.0.0.1:4097 {
