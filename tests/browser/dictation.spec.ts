@@ -2,11 +2,27 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 const script = readFileSync("dist/opencode-voice-dictation.user.js", "utf8");
+// Native row geometry from OpenCode 907b3bc / e5ecb571. No original user page data.
+const send = `<button type="button" data-action="prompt-submit" data-icon="arrow-up" aria-label="Send"><svg data-slot="icon-svg" viewBox="0 0 16 16"><path d="M8 13V3M3 8l5-5 5 5" fill="none" stroke="currentColor"/></svg></button>`;
 const fixture = `<!doctype html><title>OpenCode composer fixture</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 12px; font-family: sans-serif; }
+form { max-width: 720px; margin: 80px auto 0; border: 1px solid #999; border-radius: 12px; }
+[contenteditable=true] { min-height: 76px; padding: 16px; }
+[data-fixture=toolbar] { display: flex; height: 44px; align-items: center; padding: 0 8px; }
+[data-fixture=model-controls] { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
+[data-slot=composer-actions], [data-component=tooltip-v2-trigger] { display: flex; flex-shrink: 0; align-items: center; }
+button[data-action$="-submit"] { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 6px; cursor: default; }
+button[data-action$="-submit"] svg { width: 16px; height: 16px; flex-shrink: 0; }
+</style>
 <form data-component="prompt-input-v2">
   <div data-slot="prompt-attachments">image.png</div>
   <div data-component="prompt-input" contenteditable="true" role="textbox">Review <span data-mention="file" data-path="src/a.ts" contenteditable="false">@a.ts</span></div>
-  <button type="button" data-action="prompt-submit" data-icon="arrow-up">Send</button>
+  <div data-fixture="toolbar">
+    <div data-fixture="model-controls">Agent / Model / Variant controls</div>
+    <div data-component="tooltip-v2-trigger">${send}</div>
+  </div>
 </form><output id="framework-value"></output><output id="sent">0</output>
 <script>
 // Mirrors the verified V2 input contract: parse DOM on input, preserve attached parts.
@@ -26,10 +42,13 @@ test.beforeEach(async ({ page }, testInfo) => {
           .replaceAll('data-component="prompt-input-v2"', 'data-component="composer"')
           .replaceAll('data-component="prompt-input"', 'data-component="composer-editor"')
           .replaceAll('data-action="prompt-submit"', 'data-action="composer-submit"')
+          .replace('data-icon="arrow-up"', 'data-component="icon-button-v2"')
+          .replace(/<path[^>]+\/>/, '<use href="#opencode-v2-icon-arrow-up"></use>')
           .replace(
-            'data-icon="arrow-up">Send',
-            '><svg data-slot="icon-svg"><use href="#opencode-v2-icon-arrow-up"></use></svg>Send',
+            '<div data-component="tooltip-v2-trigger">',
+            '<div data-slot="composer-actions"><div data-component="tooltip-v2-trigger">',
           )
+          .replace("</button></div>", "</button></div></div>")
       : fixture;
   await page.route("**/*", (route) => route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("https://opencode-fixture.test/project/session/first");
@@ -77,6 +96,77 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
   await page.addScriptTag({ content: script });
 });
+
+for (const width of [1024, 320]) {
+  test(`native action-row alignment, hover and recording controls at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 720 });
+    const mic = page.locator(".ocvd-btn");
+    const submit = page.locator('button[data-action$="-submit"]');
+    await mic.hover();
+    await expect(mic).toHaveCSS("cursor", "default");
+    await expect(page.locator(".ocvd-container")).toHaveCSS("position", "static");
+    const inspect = () =>
+      page.evaluate(() => {
+        const mic = document.querySelector(".ocvd-btn") as HTMLElement;
+        const submit = document.querySelector('button[data-action$="-submit"]') as HTMLElement;
+        const container = mic.parentElement;
+        const anchor = submit.parentElement;
+        const box = (element: Element) => {
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return { x, y, width, height };
+        };
+        return {
+          adjacent: container?.nextElementSibling === anchor,
+          separateTooltip: !anchor?.contains(mic),
+          mic: box(mic),
+          submit: box(submit),
+          icon: box(mic.querySelector("svg") as SVGElement),
+          nativeIcon: box(submit.querySelector("svg") as SVGElement),
+          padding: getComputedStyle(mic).padding,
+          nativePadding: getComputedStyle(submit).padding,
+          radius: getComputedStyle(mic).borderRadius,
+          nativeRadius: getComputedStyle(submit).borderRadius,
+          overflow: document.documentElement.scrollWidth > innerWidth,
+        };
+      });
+    const assertAligned = async () => {
+      const view = await inspect();
+      expect(view.adjacent).toBe(true);
+      expect(view.separateTooltip).toBe(true);
+      expect(view.mic.width).toBeGreaterThan(0);
+      expect(view.mic.width).toBe(view.submit.width);
+      expect(view.mic.height).toBe(view.submit.height);
+      expect(view.mic.y).toBe(view.submit.y);
+      expect(view.mic.x + view.mic.width).toBeLessThanOrEqual(view.submit.x);
+      expect(view.icon.width).toBe(view.nativeIcon.width);
+      expect(view.icon.height).toBe(view.nativeIcon.height);
+      expect(view.padding).toBe(view.nativePadding);
+      expect(view.radius).toBe(view.nativeRadius);
+      expect(view.overflow).toBe(false);
+    };
+    await assertAligned();
+    await mic.click();
+    await expect(mic).toHaveClass(/recording/);
+    await assertAligned();
+    const cancel = page.locator(".ocvd-cancel");
+    await cancel.hover();
+    await expect(cancel).toHaveCSS("cursor", "default");
+    await expect(cancel).toHaveCSS("width", "28px");
+    await cancel.click();
+    await expect(mic).toHaveClass("ocvd-btn");
+    // A native style/size change must be followed without polling or reinjection.
+    await submit.evaluate((button) => {
+      button.style.width = "32px";
+      button.style.height = "32px";
+      button.style.padding = "8px";
+      button.style.borderRadius = "8px";
+    });
+    await expect(mic).toHaveCSS("width", "32px");
+    await assertAligned();
+  });
+}
 
 test("real Chromium input appends and retains rich nodes and attachment DOM", async ({ page }) => {
   const mic = page.locator(".ocvd-btn");

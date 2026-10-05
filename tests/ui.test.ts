@@ -63,10 +63,75 @@ it("mounts one control in renamed beta composer and recreates it on session swit
   mountRenamedComposer();
   start();
   expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
-  expect(
-    document.querySelector('form[data-component="composer"] > .ocvd-container'),
-  ).not.toBeNull();
+  expect(document.querySelector('[data-slot="composer-actions"] > .ocvd-container')).not.toBeNull();
   mountRenamedComposer();
   await flush();
   expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+});
+
+describe.each([mountComposer, mountRenamedComposer])("native action row", (mount) => {
+  it("mounts immediately before Submit and settles without an observer loop", async () => {
+    mount();
+    start();
+    const submit = document.querySelector('button[data-action$="-submit"]');
+    const controls = document.querySelector(".ocvd-container");
+    expect(controls?.nextElementSibling).toBe(submit);
+    expect(controls?.parentElement).not.toBe(document.querySelector("form"));
+    await flush();
+    const changes = vi.fn();
+    const observer = new MutationObserver(changes);
+    observer.observe(document.body, { childList: true, subtree: true });
+    ui?.inject();
+    ui?.inject();
+    await flush();
+    expect(changes).not.toHaveBeenCalled();
+    observer.disconnect();
+  });
+
+  it("follows replacement, tooltip wrapping and dynamic alternate actions", async () => {
+    mount();
+    const active = start();
+    active.updateState("recording", 3);
+    const submit = document.querySelector('button[data-action$="-submit"]') as HTMLButtonElement;
+    const controls = document.querySelector(".ocvd-container");
+    const replacement = submit.cloneNode(true) as HTMLButtonElement;
+    const tooltip = document.createElement("div");
+    tooltip.dataset.component = "tooltip-v2-trigger";
+    tooltip.append(replacement);
+    submit.replaceWith(tooltip);
+    const alternate = document.createElement("button");
+    alternate.dataset.action = "composer-alternate-delivery";
+    tooltip.before(alternate);
+    await flush();
+    expect(controls?.nextElementSibling).toBe(tooltip);
+    expect(controls?.previousElementSibling).toBe(alternate);
+    expect(tooltip.querySelector(".ocvd-btn")).toBeNull();
+    expect(document.querySelectorAll(".ocvd-btn.recording")).toHaveLength(1);
+    expect(document.querySelector(".ocvd-timer")?.textContent).toBe("00:03");
+    replacement.replaceWith(replacement.cloneNode(true));
+    await flush();
+    expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+    const unwrapped = tooltip.querySelector("button") as HTMLButtonElement;
+    unwrapped.disabled = true;
+    tooltip.replaceWith(unwrapped);
+    await flush();
+    expect(controls?.nextElementSibling).toBe(unwrapped);
+    expect(document.querySelectorAll(".ocvd-btn.recording")).toHaveLength(1);
+  });
+
+  it("waits for Submit and recovers after the entire action row is replaced", async () => {
+    mount();
+    const row = document.querySelector('[data-fixture="toolbar"]') as HTMLElement;
+    const newRow = row.cloneNode(true);
+    row.remove();
+    start();
+    expect(document.querySelector(".ocvd-btn")).toBeNull();
+    document.querySelector("form")?.append(newRow);
+    await flush();
+    expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+    newRow.parentNode?.replaceChild(row, newRow);
+    await flush();
+    expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+    expect(row.querySelector(".ocvd-btn")).not.toBeNull();
+  });
 });

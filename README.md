@@ -31,7 +31,7 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 
 | Feature | Description |
 |---------|-------------|
-| 🎤 Mic button | Click 🎤 in the input area, speak — text inserts into the prompt |
+| 🎤 Mic button | Beside Send, with matching native size and default cursor; click to dictate |
 | 🌍 Language | `ru`, `en`, or auto-detect |
 | ⚡ Auto-submit | Sends transcription to the agent after dictation (toggleable) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` via Groq API |
@@ -168,7 +168,7 @@ npm run check
 
 For a system Chromium, use `CHROMIUM_PATH=/path/to/chromium npm run check`. The aggregate command runs lint, types, dead-code checks, Vitest with coverage, a reproducible userscript build and Chromium tests. CI targets `master` and verifies that committed `dist/` matches source. GitHub forks may require the owner to enable Actions once under the repository's Actions tab.
 
-Covered: lazy/initial composer, new/replaced/switching sessions, duplicate injection, start/stop/cancel (including pending microphone permission and HTTP requests), denied microphone, resource cleanup, HTTP 401/429/5xx, network/timeout, rich-text append and input events, optional Send/Stop guards, pagehide/refresh cleanup, persisted configuration, and inert metadata/unrelated DOM.
+Covered: native action-row placement and sizing at desktop/narrow widths, tooltip/Submit replacement, lazy/initial composer, new/replaced/switching sessions, duplicate injection, start/stop/cancel (including pending microphone permission and HTTP requests), denied microphone, resource cleanup, HTTP 401/429/5xx, network/timeout, rich-text append and input events, optional Send/Stop guards, pagehide/refresh cleanup, persisted configuration, and inert metadata/unrelated DOM.
 
 Boundary: browser tests use the built script and a source-shaped V2 fixture, with mocked microphone and Groq. No real recording, API key, paid API call, extension installation, live server, Firefox/mobile, or actual Tampermonkey User-match enforcement was exercised. After installing, check the script is absent on an unrelated site, appears on your scoped OpenCode URL, and persists settings after reload. Keep auto-submit off for your first test.
 

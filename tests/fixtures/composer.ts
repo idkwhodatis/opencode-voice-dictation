@@ -4,7 +4,10 @@ export function mountComposer(wrapper = "prompt-input-v2"): HTMLDivElement {
     <form data-component="${wrapper}">
       <div data-slot="prompt-attachments"><span>image.png</span></div>
       <div data-component="prompt-input" contenteditable="true" role="textbox"></div>
-      <button type="button" data-action="prompt-submit" data-icon="arrow-up"></button>
+      <div class="flex h-11 items-center px-2" data-fixture="toolbar">
+        <div class="flex-1 min-w-0" data-fixture="model-controls"></div>
+        <button type="button" data-action="prompt-submit" data-icon="arrow-up"></button>
+      </div>
     </form></div>`;
   return document.querySelector('[data-component="prompt-input"]') as HTMLDivElement;
 }
@@ -18,9 +21,14 @@ export function mountRenamedComposer(): HTMLDivElement {
       <div data-component="composer-scroll"><div role="region">
         <div data-component="composer-editor" contenteditable="true" role="textbox"></div>
       </div></div>
-      <button type="button" data-action="composer-submit" data-component="icon-button-v2">
-        <svg data-slot="icon-svg"><use href="#opencode-v2-icon-arrow-up"></use></svg>
-      </button>
+      <div class="flex h-11 items-center px-2" data-fixture="toolbar">
+        <div data-slot="composer-controls" class="flex-1 min-w-0"></div>
+        <div data-slot="composer-actions" class="flex shrink-0 items-center">
+          <button type="button" data-action="composer-submit" data-component="icon-button-v2">
+            <svg data-slot="icon-svg"><use href="#opencode-v2-icon-arrow-up"></use></svg>
+          </button>
+        </div>
+      </div>
     </form></div>`;
   return document.querySelector('[data-component="composer-editor"]') as HTMLDivElement;
 }

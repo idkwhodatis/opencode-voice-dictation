@@ -13,32 +13,40 @@ const ICON_SPINNER = `<svg class="ocvd-spin" viewBox="0 0 24 24" width="18" heig
 function createButtonStyle(): string {
   return `
     .${CONTAINER_CLASS} {
-      position: absolute !important;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex: 0 0 auto;
+      margin-inline-end: 4px;
+    }
+    .${CONTAINER_CLASS}[data-target="question"] {
+      position: absolute;
       top: 8px;
       right: 8px;
-      z-index: 999998;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      pointer-events: none;
+      z-index: 1;
     }
-    .${CONTAINER_CLASS} > * {
-      pointer-events: auto;
+    .${BUTTON_CLASS}, .${CANCEL_CLASS} {
+      box-sizing: border-box;
+      width: var(--ocvd-button-width, 28px);
+      height: var(--ocvd-button-height, 28px);
+      padding: var(--ocvd-button-padding, 6px);
+      border-radius: var(--ocvd-button-radius, 6px);
+      border: none;
+      cursor: default;
+      flex-shrink: 0;
+    }
+    .${BUTTON_CLASS} > svg, .${CANCEL_CLASS} > svg {
+      width: var(--ocvd-icon-width, 16px);
+      height: var(--ocvd-icon-height, 16px);
+      flex-shrink: 0;
     }
     .${BUTTON_CLASS} {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      border: none;
       background: var(--color-bg-tertiary, rgba(128, 128, 128, 0.15));
       color: var(--color-text-secondary, #888);
-      cursor: pointer;
       transition: all 0.2s ease;
-      padding: 0;
-      flex-shrink: 0;
     }
     .${BUTTON_CLASS}:hover {
       background: var(--color-bg-hover, rgba(128, 128, 128, 0.25));
@@ -59,16 +67,9 @@ function createButtonStyle(): string {
       display: none;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: none;
       background: rgba(128, 128, 128, 0.5);
       color: #fff;
-      cursor: pointer;
       transition: all 0.2s ease;
-      padding: 0;
-      flex-shrink: 0;
     }
     .${CANCEL_CLASS}:hover {
       background: rgba(128, 128, 128, 0.7);
@@ -80,11 +81,11 @@ function createButtonStyle(): string {
     .${TIMER_CLASS} {
       display: none;
       font-family: monospace;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       color: #fff;
       background: #e53935;
-      padding: 4px 10px;
+      padding: 4px 6px;
       border-radius: 12px;
       align-items: center;
       gap: 5px;
@@ -176,10 +177,11 @@ function formatTimer(seconds: number): string {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-function createContainer(): HTMLDivElement {
+function createContainer(target: InsertTarget): HTMLDivElement {
   const container = document.createElement("div");
   container.className = CONTAINER_CLASS;
   container.dataset.ocvd = "controls";
+  container.dataset.target = target;
 
   const cancel = document.createElement("button");
   cancel.className = CANCEL_CLASS;
@@ -252,19 +254,25 @@ function ensureRelative(el: HTMLElement): void {
 
 function injectIntoElement(
   parent: HTMLElement,
+  before: HTMLElement | null,
+  existing: HTMLElement | null,
   onToggle: (target: InsertTarget) => void,
   onCancel: () => void,
   target: InsertTarget,
 ): HTMLElement | null {
-  const existing = parent.querySelector(`.${CONTAINER_CLASS}`);
   if (existing) {
+    // Move only if OpenCode replaced/reordered its action row. An unconditional
+    // insertBefore would retrigger our subtree observer indefinitely.
+    if (existing.parentElement !== parent || (before && existing.nextElementSibling !== before)) {
+      parent.insertBefore(existing, before);
+    }
     return null;
   }
 
   injectStyles();
-  ensureRelative(parent);
+  if (target === "question") ensureRelative(parent);
 
-  const container = createContainer();
+  const container = createContainer(target);
 
   const button = container.querySelector(`.${BUTTON_CLASS}`) as HTMLButtonElement;
   button.addEventListener("click", (e) => {
@@ -280,8 +288,29 @@ function injectIntoElement(
     onCancel();
   });
 
-  parent.appendChild(container);
+  parent.insertBefore(container, before);
   return container;
+}
+
+function matchButtonSize(container: HTMLElement, button: HTMLButtonElement): void {
+  const box = button.getBoundingClientRect();
+  if (!box.width || !box.height) return; // Hidden/lazy row: keep the verified 28px fallback.
+  const style = getComputedStyle(button);
+  const icon = button.querySelector("svg")?.getBoundingClientRect();
+  const sizes: Record<string, string> = {
+    "button-width": `${box.width}px`,
+    "button-height": `${box.height}px`,
+    "button-padding": style.padding,
+    "button-radius": style.borderRadius,
+    "icon-width": `${icon?.width || 16}px`,
+    "icon-height": `${icon?.height || 16}px`,
+  };
+  for (const [name, value] of Object.entries(sizes)) {
+    const property = `--ocvd-${name}`;
+    if (container.style.getPropertyValue(property) !== value) {
+      container.style.setProperty(property, value);
+    }
+  }
 }
 
 export function setupUI(callbacks: {
@@ -297,20 +326,47 @@ export function setupUI(callbacks: {
   let state: DictationState = "idle";
   let elapsed = 0;
   let destroyed = false;
+  let submit: HTMLButtonElement | null = null;
+  let controls: HTMLElement | null = null;
+  const resizeObserver = new ResizeObserver(() => {
+    if (controls && submit) matchButtonSize(controls, submit);
+  });
   const inject = () => {
     if (destroyed) return;
     callbacks.onContextChange?.();
     const target = captureTarget("question") ?? captureTarget();
+    const nextSubmit =
+      target?.kind === "composer"
+        ? target.composer.querySelector<HTMLButtonElement>(
+            'button[data-action="composer-submit"], button[data-action="prompt-submit"]',
+          )
+        : null;
+    // Enabled Send is wrapped by OpenCode's Tooltip. Keep our controls outside
+    // that trigger so hovering the mic cannot show the Send tooltip.
+    const anchor = nextSubmit?.parentElement?.matches('[data-component="tooltip-v2-trigger"]')
+      ? nextSubmit.parentElement
+      : nextSubmit;
+    const parent = target?.kind === "question" ? target.composer : anchor?.parentElement;
     for (const container of document.querySelectorAll(`.${CONTAINER_CLASS}`)) {
-      if (container.parentElement !== target?.composer) container.remove();
+      if (!parent || !target?.composer.contains(container)) container.remove();
     }
-    if (!target) return;
+    if (submit !== nextSubmit) {
+      resizeObserver.disconnect();
+      submit = nextSubmit;
+      if (submit) resizeObserver.observe(submit);
+    }
+    controls = null;
+    if (!target || !parent) return;
     const added = injectIntoElement(
-      target.composer,
+      parent,
+      anchor,
+      target.composer.querySelector<HTMLElement>(`.${CONTAINER_CLASS}`),
       callbacks.onToggle,
       callbacks.onCancel,
       target.kind,
     );
+    controls = added ?? target.composer.querySelector<HTMLElement>(`.${CONTAINER_CLASS}`);
+    if (controls && submit) matchButtonSize(controls, submit);
     if (added) updateAllButtonStates(state, elapsed);
   };
   const observer = new MutationObserver(inject);
@@ -336,6 +392,7 @@ export function setupUI(callbacks: {
     destroy: () => {
       destroyed = true;
       observer.disconnect();
+      resizeObserver.disconnect();
       window.removeEventListener("urlchange", inject);
       window.removeEventListener("popstate", inject);
       window.removeEventListener("hashchange", inject);
