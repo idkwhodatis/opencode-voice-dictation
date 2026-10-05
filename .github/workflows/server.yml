@@ -33,14 +33,19 @@ jobs:
       - run: bun run typecheck
         working-directory: server
       - run: bun test service.test.ts
+        if: ${{ !cancelled() }}
         working-directory: server
       - run: npx playwright install --with-deps chromium
+        if: ${{ !cancelled() }}
       - run: npx playwright test --config server/playwright.config.ts
+        if: ${{ !cancelled() }}
       - name: Check existing userscript and committed distribution
+        if: ${{ !cancelled() }}
         run: |
           npm run check
           git diff --exit-code -- dist/
       - name: Validate stock Caddy configuration
+        if: ${{ !cancelled() }}
         env:
           VOICE_SITE: 'http://localhost:18080'
           VOICE_PROXY_TOKEN: 'test-only-proxy-token-that-is-long-enough'

@@ -22,7 +22,7 @@ function fixture(overrides: Partial<ServiceOptions> = {}) {
       ["/voice/voice.js", { body: "/* public script */", type: "text/javascript" }],
       ["/voice/", { body: "<!doctype html><title>Settings</title>", type: "text/html" }],
     ]),
-    fetcher: (async () => Response.json({ text: "Hello 你好" })) as typeof fetch,
+    fetcher: mockFetch(async () => Response.json({ text: "Hello 你好" })),
     ...overrides,
   });
   return { handler, settings };
