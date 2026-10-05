@@ -11,16 +11,17 @@ body { margin: 12px; font-family: sans-serif; }
 form { max-width: 720px; margin: 80px auto 0; border: 1px solid #999; border-radius: 12px; }
 [contenteditable=true] { min-height: 76px; padding: 16px; }
 [data-fixture=toolbar] { display: flex; height: 44px; align-items: center; padding: 0 8px; }
-[data-fixture=model-controls] { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
+[data-fixture=model-controls] { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
 [data-slot=composer-actions], [data-component=tooltip-v2-trigger] { display: flex; flex-shrink: 0; align-items: center; }
-button[data-action$="-submit"] { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 6px; cursor: default; }
-button[data-action$="-submit"] svg { width: 16px; height: 16px; flex-shrink: 0; }
+button[data-action$="-attach"], button[data-action$="-submit"] { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 6px; cursor: default; }
+button[data-action$="-attach"] svg, button[data-action$="-submit"] svg { width: 16px; height: 16px; flex-shrink: 0; }
+[data-fixture=selector] { height: 28px; border: 0; padding: 0 11px; flex-shrink: 0; }
 </style>
 <form data-component="prompt-input-v2">
   <div data-slot="prompt-attachments">image.png</div>
   <div data-component="prompt-input" contenteditable="true" role="textbox">Review <span data-mention="file" data-path="src/a.ts" contenteditable="false">@a.ts</span></div>
   <div data-fixture="toolbar">
-    <div data-fixture="model-controls">Agent / Model / Variant controls</div>
+    <div data-fixture="model-controls"><button type="button" data-action="prompt-attach" aria-label="Add images and files"><svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12"/></svg></button><button type="button" data-fixture="selector">Model</button></div>
     <div data-component="tooltip-v2-trigger">${send}</div>
   </div>
 </form><output id="framework-value"></output><output id="sent">0</output>
@@ -41,6 +42,7 @@ test.beforeEach(async ({ page }, testInfo) => {
       ? fixture
           .replaceAll('data-component="prompt-input-v2"', 'data-component="composer"')
           .replaceAll('data-component="prompt-input"', 'data-component="composer-editor"')
+          .replaceAll('data-action="prompt-attach"', 'data-action="composer-attach"')
           .replaceAll('data-action="prompt-submit"', 'data-action="composer-submit"')
           .replace('data-icon="arrow-up"', 'data-component="icon-button-v2"')
           .replace(/<path[^>]+\/>/, '<use href="#opencode-v2-icon-arrow-up"></use>')
@@ -221,3 +223,52 @@ test("shipping metadata is inert until explicitly scoped and update URLs stay on
   );
   expect(script).not.toContain("setTimeout(init, 1500)");
 });
+
+for (const direction of ["ltr", "rtl"]) {
+  test(`matches Add/selector visible spacing without doubling row gap (${direction})`, async ({
+    page,
+  }) => {
+    await page.evaluate((dir) => {
+      document.documentElement.dir = dir;
+    }, direction);
+    const inspect = () =>
+      page.evaluate(() => {
+        const rect = (selector: string) =>
+          (document.querySelector(selector) as Element).getBoundingClientRect();
+        const rtl = document.documentElement.dir === "rtl";
+        const add = rect('button[data-action$="-attach"] svg');
+        const selector = rect('[data-fixture="selector"]');
+        const padding = Number.parseFloat(
+          getComputedStyle(document.querySelector('[data-fixture="selector"]') as Element)
+            .paddingInlineStart,
+        );
+        const mic = rect(".ocvd-btn svg");
+        const send = rect('button[data-action$="-submit"] svg');
+        return {
+          reference: rtl
+            ? add.left - selector.right + padding
+            : selector.left + padding - add.right,
+          actual: rtl ? mic.left - send.right : send.left - mic.right,
+        };
+      });
+    for (const width of [1024, 320]) {
+      await page.setViewportSize({ width, height: 720 });
+      for (const gap of [0, 3, 12]) {
+        await page.locator(".ocvd-container").evaluate((container, gap) => {
+          (container.parentElement as HTMLElement).style.columnGap = `${gap}px`;
+          window.dispatchEvent(new Event("resize"));
+        }, gap);
+        await expect
+          .poll(async () => {
+            const x = await inspect();
+            return Math.abs(x.reference - x.actual);
+          })
+          .toBeLessThan(0.1);
+      }
+    }
+    await page.locator(".ocvd-btn").click();
+    const view = await inspect();
+    expect(view.actual).toBeCloseTo(view.reference, 1);
+    await page.locator(".ocvd-cancel").click();
+  });
+}

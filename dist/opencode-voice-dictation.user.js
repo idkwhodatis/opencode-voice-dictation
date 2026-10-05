@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenCode Voice Dictation
 // @namespace    https://github.com/idkwhodatis/opencode-voice-dictation
-// @version      1.1.4
+// @version      1.1.5
 // @author       slaid098
 // @description  Voice dictation for OpenCode web using Whisper (Groq API) - works on PC and mobile
 // @icon         https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/assets/icon.png
@@ -399,10 +399,11 @@
       align-items: center;
       gap: 4px;
       flex: 0 0 auto;
-      margin-inline-end: 4px;
+      margin-inline-end: var(--ocvd-submit-spacing, 9px);
     }
     .${CONTAINER_CLASS}[data-target="question"] {
       position: absolute;
+      margin-inline-end: 4px;
       top: 8px;
       right: 8px;
       z-index: 1;
@@ -664,6 +665,36 @@
       }
     }
   }
+  function matchSubmitSpacing(container, submit) {
+    var _a, _b, _c;
+    const composer = submit.closest(
+      'form[data-component="composer"], [data-component="prompt-input-v2"]'
+    );
+    const attach = composer == null ? void 0 : composer.querySelector(
+      'button[data-action="composer-attach"], button[data-action="prompt-attach"]'
+    );
+    const buttons = [...(composer == null ? void 0 : composer.querySelectorAll("button")) ?? []];
+    const selector = buttons.slice(buttons.indexOf(attach) + 1).find(
+      (button) => !container.contains(button) && button !== submit && button.getBoundingClientRect().width > 0
+    );
+    const attachIcon = (_a = attach == null ? void 0 : attach.querySelector("svg")) == null ? void 0 : _a.getBoundingClientRect();
+    const micIcon = (_b = container.querySelector(`.${BUTTON_CLASS} > svg`)) == null ? void 0 : _b.getBoundingClientRect();
+    const submitIcon = (_c = submit.querySelector("svg")) == null ? void 0 : _c.getBoundingClientRect();
+    if (!(attachIcon == null ? void 0 : attachIcon.width) || !selector || !(micIcon == null ? void 0 : micIcon.width) || !(submitIcon == null ? void 0 : submitIcon.width)) return;
+    const rtl = getComputedStyle(container).direction === "rtl";
+    const selectBox = selector.getBoundingClientRect();
+    const selectStyle = getComputedStyle(selector);
+    const inset = Number.parseFloat(selectStyle.paddingInlineStart) || 0;
+    const border = Number.parseFloat(selectStyle.borderInlineStartWidth) || 0;
+    const reference = rtl ? attachIcon.left - (selectBox.right - inset - border) : selectBox.left + inset + border - attachIcon.right;
+    if (reference < 0 || reference > 64) return;
+    const actual = rtl ? micIcon.left - submitIcon.right : submitIcon.left - micIcon.right;
+    const current = Number.parseFloat(getComputedStyle(container).marginInlineEnd) || 0;
+    const value = `${Math.round((current + reference - actual) * 100) / 100}px`;
+    if (container.style.getPropertyValue("--ocvd-submit-spacing") !== value) {
+      container.style.setProperty("--ocvd-submit-spacing", value);
+    }
+  }
   function setupUI(callbacks) {
     let state = "idle";
     let elapsed = 0;
@@ -671,7 +702,10 @@
     let submit = null;
     let controls = null;
     const resizeObserver = new ResizeObserver(() => {
-      if (controls && submit) matchButtonSize(controls, submit);
+      if (controls && submit) {
+        matchButtonSize(controls, submit);
+        matchSubmitSpacing(controls, submit);
+      }
     });
     const inject = () => {
       var _a, _b;
@@ -689,7 +723,10 @@
       if (submit !== nextSubmit) {
         resizeObserver.disconnect();
         submit = nextSubmit;
-        if (submit) resizeObserver.observe(submit, { box: "border-box" });
+        if (submit) {
+          resizeObserver.observe(submit, { box: "border-box" });
+          if (target) resizeObserver.observe(target.composer, { box: "border-box" });
+        }
       }
       controls = null;
       if (!target || !parent) return;
@@ -702,7 +739,10 @@
         target.kind
       );
       controls = added ?? target.composer.querySelector(`.${CONTAINER_CLASS}`);
-      if (controls && submit) matchButtonSize(controls, submit);
+      if (controls && submit) {
+        matchButtonSize(controls, submit);
+        matchSubmitSpacing(controls, submit);
+      }
       if (added) updateAllButtonStates(state, elapsed);
     };
     const observer = new MutationObserver(inject);
@@ -712,6 +752,7 @@
       attributes: true,
       attributeFilter: ["contenteditable", "disabled"]
     });
+    window.addEventListener("resize", inject);
     window.addEventListener("urlchange", inject);
     window.addEventListener("popstate", inject);
     window.addEventListener("hashchange", inject);
@@ -728,6 +769,7 @@
         destroyed = true;
         observer.disconnect();
         resizeObserver.disconnect();
+        window.removeEventListener("resize", inject);
         window.removeEventListener("urlchange", inject);
         window.removeEventListener("popstate", inject);
         window.removeEventListener("hashchange", inject);

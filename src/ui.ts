@@ -17,10 +17,11 @@ function createButtonStyle(): string {
       align-items: center;
       gap: 4px;
       flex: 0 0 auto;
-      margin-inline-end: 4px;
+      margin-inline-end: var(--ocvd-submit-spacing, 9px);
     }
     .${CONTAINER_CLASS}[data-target="question"] {
       position: absolute;
+      margin-inline-end: 4px;
       top: 8px;
       right: 8px;
       z-index: 1;
@@ -313,6 +314,45 @@ function matchButtonSize(container: HTMLElement, button: HTMLButtonElement): voi
   }
 }
 
+// Match the visible Add/selector spacing, including the selector's larger
+// inline padding. Measuring the actual row also subtracts any native flex gap.
+function matchSubmitSpacing(container: HTMLElement, submit: HTMLButtonElement): void {
+  const composer = submit.closest(
+    'form[data-component="composer"], [data-component="prompt-input-v2"]',
+  );
+  const attach = composer?.querySelector<HTMLElement>(
+    'button[data-action="composer-attach"], button[data-action="prompt-attach"]',
+  );
+  const buttons = [...(composer?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+  const selector = buttons
+    .slice(buttons.indexOf(attach as HTMLButtonElement) + 1)
+    .find(
+      (button) =>
+        !container.contains(button) &&
+        button !== submit &&
+        button.getBoundingClientRect().width > 0,
+    );
+  const attachIcon = attach?.querySelector("svg")?.getBoundingClientRect();
+  const micIcon = container.querySelector(`.${BUTTON_CLASS} > svg`)?.getBoundingClientRect();
+  const submitIcon = submit.querySelector("svg")?.getBoundingClientRect();
+  if (!attachIcon?.width || !selector || !micIcon?.width || !submitIcon?.width) return;
+  const rtl = getComputedStyle(container).direction === "rtl";
+  const selectBox = selector.getBoundingClientRect();
+  const selectStyle = getComputedStyle(selector);
+  const inset = Number.parseFloat(selectStyle.paddingInlineStart) || 0;
+  const border = Number.parseFloat(selectStyle.borderInlineStartWidth) || 0;
+  const reference = rtl
+    ? attachIcon.left - (selectBox.right - inset - border)
+    : selectBox.left + inset + border - attachIcon.right;
+  if (reference < 0 || reference > 64) return; // Hidden/scrolled-away controls.
+  const actual = rtl ? micIcon.left - submitIcon.right : submitIcon.left - micIcon.right;
+  const current = Number.parseFloat(getComputedStyle(container).marginInlineEnd) || 0;
+  const value = `${Math.round((current + reference - actual) * 100) / 100}px`;
+  if (container.style.getPropertyValue("--ocvd-submit-spacing") !== value) {
+    container.style.setProperty("--ocvd-submit-spacing", value);
+  }
+}
+
 export function setupUI(callbacks: {
   onToggle: (target: InsertTarget) => void;
   onCancel: () => void;
@@ -329,7 +369,10 @@ export function setupUI(callbacks: {
   let submit: HTMLButtonElement | null = null;
   let controls: HTMLElement | null = null;
   const resizeObserver = new ResizeObserver(() => {
-    if (controls && submit) matchButtonSize(controls, submit);
+    if (controls && submit) {
+      matchButtonSize(controls, submit);
+      matchSubmitSpacing(controls, submit);
+    }
   });
   const inject = () => {
     if (destroyed) return;
@@ -354,7 +397,10 @@ export function setupUI(callbacks: {
       resizeObserver.disconnect();
       submit = nextSubmit;
       // Padding can change the outer size while the content box stays 16px.
-      if (submit) resizeObserver.observe(submit, { box: "border-box" });
+      if (submit) {
+        resizeObserver.observe(submit, { box: "border-box" });
+        if (target) resizeObserver.observe(target.composer, { box: "border-box" });
+      }
     }
     controls = null;
     if (!target || !parent) return;
@@ -367,7 +413,10 @@ export function setupUI(callbacks: {
       target.kind,
     );
     controls = added ?? target.composer.querySelector<HTMLElement>(`.${CONTAINER_CLASS}`);
-    if (controls && submit) matchButtonSize(controls, submit);
+    if (controls && submit) {
+      matchButtonSize(controls, submit);
+      matchSubmitSpacing(controls, submit);
+    }
     if (added) updateAllButtonStates(state, elapsed);
   };
   const observer = new MutationObserver(inject);
@@ -378,6 +427,7 @@ export function setupUI(callbacks: {
     attributeFilter: ["contenteditable", "disabled"],
   });
   // Tampermonkey observes pushState/replaceState without page-world monkeypatching.
+  window.addEventListener("resize", inject);
   window.addEventListener("urlchange", inject);
   window.addEventListener("popstate", inject);
   window.addEventListener("hashchange", inject);
@@ -394,6 +444,7 @@ export function setupUI(callbacks: {
       destroyed = true;
       observer.disconnect();
       resizeObserver.disconnect();
+      window.removeEventListener("resize", inject);
       window.removeEventListener("urlchange", inject);
       window.removeEventListener("popstate", inject);
       window.removeEventListener("hashchange", inject);
