@@ -1,6 +1,6 @@
 import { type InputTarget, captureTarget, insertText, isCurrentTarget } from "../src/insert";
 
-interface Boundary { path: number[]; offset: number }
+interface Boundary { path: number[]; offset: number; prefix: string }
 type Position = { kind: "rich"; start: Boundary; end: Boundary } |
   { kind: "textarea"; start: number; end: number };
 interface Bookmark {
@@ -15,6 +15,11 @@ const snapshot = (target: InputTarget) => target.editor instanceof HTMLTextAreaE
 const protectedSelector = '[contenteditable="false"], [data-mention], [data-type="mention"], [data-type="attachment"], img';
 
 function boundary(root: Node, node: Node, offset: number): Boundary | null {
+  if (!root.contains(node)) return null;
+  const before = document.createRange();
+  before.selectNodeContents(root);
+  before.setEnd(node, offset);
+  const prefix = before.toString();
   const path: number[] = [];
   while (node !== root) {
     const parent = node.parentNode;
@@ -22,7 +27,7 @@ function boundary(root: Node, node: Node, offset: number): Boundary | null {
     path.unshift(Array.prototype.indexOf.call(parent.childNodes, node));
     node = parent;
   }
-  return { path, offset };
+  return { path, offset, prefix };
 }
 function resolve(root: Node, point: Boundary): Node | null {
   let node = root;
@@ -32,7 +37,12 @@ function resolve(root: Node, point: Boundary): Node | null {
     node = next;
   }
   const size = node.nodeType === Node.TEXT_NODE ? node.textContent!.length : node.childNodes.length;
-  return point.offset >= 0 && point.offset <= size ? node : null;
+  if (point.offset < 0 || point.offset > size) return null;
+  const before = document.createRange();
+  before.selectNodeContents(root);
+  before.setEnd(node, point.offset);
+  // Adjacent text nodes may be split/merged without changing innerHTML.
+  return before.toString() === point.prefix ? node : null;
 }
 function selectionPosition(target: InputTarget): Position | null {
   const editor = target.editor;
@@ -120,7 +130,8 @@ function adjacentCharacter(root: Node, node: Node, offset: number, before: boole
 function spaced(text: string, left: string, right: string): string {
   const word = /[\p{L}\p{N}_]/u;
   const unspaced = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
-  const needsSpace = (a: string, b: string) => word.test(a) && word.test(b) && !unspaced.test(a + b);
+  const closing = /[.!?,;:)\]}]/u;
+  const needsSpace = (a: string, b: string) => (word.test(a) || closing.test(a)) && word.test(b) && !unspaced.test(a + b);
   const chars = Array.from(text);
   return `${needsSpace(left, chars[0] ?? "") ? " " : ""}${text}${needsSpace(chars.at(-1) ?? "", right) ? " " : ""}`;
 }
@@ -150,7 +161,8 @@ export function insertAtCaret(text: string, target: InputTarget, bookmark: Bookm
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
     if (!setter) return { inserted: false, fallback: false };
     editor.focus();
-    if (!isCurrentTarget(target) || snapshot(target) !== bookmark.snapshot) return { inserted: false, fallback: false };
+    if (!isCurrentTarget(target)) return { inserted: false, fallback: false };
+    if (snapshot(target) !== bookmark.snapshot) return append(true);
     setter.call(editor, value.slice(0, position.start) + addition + value.slice(position.end));
     editor.setSelectionRange(position.start + addition.length, position.start + addition.length);
     editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: addition }));
@@ -171,7 +183,8 @@ export function insertAtCaret(text: string, target: InputTarget, bookmark: Bookm
     adjacentCharacter(editor, start, position.start.offset, true),
     adjacentCharacter(editor, end, position.end.offset, false));
   editor.focus();
-  if (!isCurrentTarget(target) || snapshot(target) !== bookmark.snapshot) return { inserted: false, fallback: false };
+  if (!isCurrentTarget(target)) return { inserted: false, fallback: false };
+  if (snapshot(target) !== bookmark.snapshot) return append(true);
   const selection = window.getSelection();
   if (!selection) return { inserted: false, fallback: false };
   selection.removeAllRanges();

@@ -77,7 +77,7 @@ for (const offset of [0, draft.length]) {
     await select(page, offset);
     await record(page);
     await finish(page);
-    await expect(page.locator(editorSelector)).toHaveText(offset === 0 ? `patch ${draft}` : `${draft}patch`);
+    await expect(page.locator(editorSelector)).toHaveText(offset === 0 ? `patch ${draft}` : `${draft} patch`);
   });
 }
 
@@ -301,5 +301,24 @@ test("question textarea selection is replaced through a native input event witho
   await finish(page);
   await expect(page.locator("textarea")).toHaveValue("before patch after");
   expect(await page.evaluate("window.questionEvents")).toBe(1);
+  expect(await page.evaluate("window.sendCount")).toBe(0);
+});
+
+test("text-node segmentation changes with identical HTML do not reuse a wrong offset", async ({ page }) => {
+  await transcript(page, "patch", 600);
+  await open(page);
+  await page.locator(editorSelector).evaluate((editor) => {
+    editor.replaceChildren(document.createTextNode("a"), document.createTextNode("bcd"), document.createTextNode("ef"));
+    (editor as HTMLElement).focus();
+    window.getSelection()!.setBaseAndExtent(editor.childNodes[1], 1, editor.childNodes[1], 1);
+  });
+  await record(page);
+  await page.getByRole("button", { name: "Transcribe and send", exact: true }).tap();
+  await expect(page.locator(".ocvd-btn")).toHaveAttribute("title", "Transcribing...");
+  await page.locator(editorSelector).evaluate((editor) => {
+    editor.replaceChildren(document.createTextNode("ab"), document.createTextNode("cd"), document.createTextNode("ef"));
+  });
+  await expect(page.getByRole("button", { name: idleName, exact: true })).toBeEnabled();
+  await expect(page.locator(editorSelector)).toHaveText("abcdef patch");
   expect(await page.evaluate("window.sendCount")).toBe(0);
 });
