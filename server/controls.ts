@@ -8,7 +8,7 @@ export function createServerControls(onSend: () => void) {
   const native = createNativeSend(onSend);
   const style = document.createElement("style");
   style.textContent = `
-    [data-ocvd-native-phase="recording"] { cursor: pointer; }
+    [data-ocvd-native-phase="recording"] { cursor: default; }
     [data-ocvd-native-phase="starting"], [data-ocvd-native-phase="processing"] {
       cursor: progress; opacity: 0.65;
     }
