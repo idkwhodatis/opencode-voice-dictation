@@ -1,8 +1,15 @@
-# 🚀 opencode-voice-dictation
+# 🚀 OpenCode WebUI Voice Input
 
-## 🎤 [安装此 Fork 的语音输入脚本 / Install this fork](https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js)
+Voice input for OpenCode WebUI is available through **two supported installation paths**:
 
-安装后请在 Tampermonkey 中仅允许自己的 OpenCode 网址；默认不会在任何真实网站运行。详见下方 [Quick Start](#-quick-start)。
+| Path | Best for | How it works |
+| --- | --- | --- |
+| **A. Tampermonkey userscript** | Desktop browsers and browsers that support userscripts/extensions | Injects the mic controls in the browser. Your STT settings/API key live in userscript storage. **[Install the userscript](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
+| **B. Server-side injection (Caddy + Bun + SQLite)** | **Stock Chrome on Android**, or self-hosted OpenCode behind a reverse proxy | Caddy/Bun injects the same voice UI into OpenCode. The provider API key stays in a private server-side file; model/language/prompt settings are persisted in SQLite. **[Server deployment guide](server/README.md)** |
+
+**Choose one path for a given OpenCode origin.** Do not intentionally run both at the same time.
+
+中文：现在有两种安装方式：**Tampermonkey 用户脚本**，或 **Caddy + Bun 的服务端注入版**。如果你需要在原生 Android Chrome 上使用，推荐服务端注入版，因为 Android Chrome 不支持普通浏览器扩展/用户脚本。
 
 ![Cover](assets/cover.png)
 <!-- tagline-en:start -->
@@ -23,7 +30,10 @@
 Needed a way to dictate to agents from a phone. Stock Android voice input doesn't cut it. OpenCode web had no built-in voice.
 
 ### ✅ What
-A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI. Language selection, auto-submit after dictation. Whisper via Groq API (requires your own key).
+Two deployment modes for the same OpenCode WebUI voice workflow:
+
+- **Tampermonkey/Violentmonkey userscript** — quickest setup where userscripts are supported.
+- **Server-side injection with Caddy + Bun + SQLite** — designed for stock Chrome on Android and self-hosted OpenCode behind a reverse proxy. The speech-provider key remains on the server.
 <!-- summary-en:end -->
 
 <!-- features-en:start -->
@@ -35,17 +45,17 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 | 🌍 Language | `ru`, `en`, or auto-detect |
 | ⚡ Auto-submit | Sends transcription to the agent after dictation (toggleable) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` via Groq API |
-| 📱 Mobile via Firefox | Firefox supports extensions; mobile Chrome doesn't |
+| 📱 Mobile | Tampermonkey path works in browsers with userscript support; server-side injection works in stock Chrome on Android |
 | ✅ Current V2 contract | Stable and renamed beta composer: source-verified at `907b3bc` / `e5ecb571`; mocked Chromium tests |
 | 🔄 Auto-update | Updates itself via `@updateURL` — no manual reinstall |
 | ⌨️ Ctrl+Space | Desktop hotkey to start/stop recording |
 <!-- features-en:end -->
 
-### ⚡ Quick Start
+### ⚡ Path A — Tampermonkey Quick Start
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/)
 2. Get a key at [console.groq.com/keys](https://console.groq.com/keys)
-3. Open the [script install link](https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js) — it installs into Tampermonkey
+3. Open the [script install link](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js) — it installs into Tampermonkey
 4. **Important: scope the script before use.** Tampermonkey Dashboard → this script → **Settings** → **Includes/Excludes** → **User matches** → **Add**. Add only your own OpenCode URL pattern, such as `https://opencode.example.com/*`, then **Save** and reload OpenCode. Use your deployment’s real scheme, dedicated host and path prefix. If needed, change the dashboard Config mode to Advanced to see the controls.
 5. The shipped match is the reserved, non-resolving `https://opencode.invalid/*`. It intentionally runs on no real site until you add your URL. Do not replace it with `*://*/*`, a generic localhost rule, or an all-sites User include. If upgrading, remove old broad User matches/includes and disable the separately installed upstream script.
 6. On the scoped OpenCode page, Tampermonkey menu → **Set Groq API Key**. Enter your own key there, never in this repository. An empty value clears it. **Set Whisper Model**, **Set Language** (empty = automatic, e.g. `zh`), and **Toggle Auto-Submit** use userscript storage and survive refresh/updates.
@@ -54,6 +64,23 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 **Port-specific localhost:** Tampermonkey match rules ignore ports. Do **not** rely on a `localhost:4096` User match to isolate that port. Leave User matches at the inert default and add `/^http:\/\/localhost:4096\/.*$/` under **User includes** instead (change the port to yours). Remove any broader localhost User includes/matches. This anchored expression matches only that scheme, host and port. [Official port-matching notes](https://www.tampermonkey.net/changelog.php?locale=en&more=true&show=gcal).
 
 Microphone access requires HTTPS or localhost and browser permission. The script requests it only when you start recording. The V2 editor preserves existing text, mention nodes and attachments. The generic home screen and disabled child-session composer have no mic until an editable composer appears. [Tampermonkey scope instructions](https://www.tampermonkey.net/faq.php?locale=en#Q103).
+
+### 🖥️ Path B — Server-side injection (Caddy + Bun + SQLite)
+
+Use this path when OpenCode is self-hosted behind Caddy, especially if you want voice input in **stock Chrome on Android**.
+
+The server edition:
+
+- injects the voice UI into OpenCode without forking OpenCode;
+- runs a small **Bun** service on the server;
+- keeps the speech-provider API key in a private local file instead of sending it to the browser;
+- persists model, language, Whisper prompt, temperature, and auto-submit settings in **SQLite**;
+- exposes a same-origin `/voice/` settings page and REST API;
+- keeps OpenCode streaming/WebSocket traffic going directly to OpenCode.
+
+Start with **[server/README.md](server/README.md)**. Example Caddy configuration, systemd service, environment settings, SQLite behavior, security notes, and REST API examples are all documented there.
+
+> If you deploy Path B on an origin where the Tampermonkey version was already installed, disable the userscript for that origin.
 
 ### 🌐 Custom STT Endpoint
 
@@ -94,7 +121,10 @@ The prompt biases the model toward the prompt's language. An English prompt with
 Нужен был способ диктовать агентам с телефона. Стандартный Android-ввод не удовлетворяет. Встроенного голоса в OpenCode web не было.
 
 ### ✅ Что
-Скрипт для Tampermonkey/Violentmonkey — кнопка микрофона в веб-интерфейсе OpenCode. Выбор языка, автоотправка после диктовки. Whisper через Groq API (нужен свой ключ).
+Два варианта установки для одного и того же голосового ввода OpenCode WebUI:
+
+- **Tampermonkey/Violentmonkey** — самый простой вариант там, где поддерживаются userscripts.
+- **Серверная инъекция Caddy + Bun + SQLite** — для self-hosted OpenCode и, в частности, обычного Chrome на Android. API-ключ провайдера остаётся на сервере.
 <!-- summary-ru:end -->
 
 <!-- features-ru:start -->
@@ -106,21 +136,29 @@ The prompt biases the model toward the prompt's language. An English prompt with
 | 🌍 Язык | `ru`, `en` или автоопределение |
 | ⚡ Автоотправка | Отправляет транскрипцию агенту после диктовки (опционально) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` через Groq API |
-| 📱 Мобайл через Firefox | Firefox поддерживает расширения; mobile Chrome — нет |
+| 📱 Мобайл | Userscript-вариант работает в браузерах с поддержкой userscripts; серверная инъекция работает в обычном Chrome на Android |
 | ✅ V2 | Stable и beta DOM проверены по исходникам `907b3bc` / `e5ecb571`; тесты Chromium с моками |
 | 🔄 Автообновление | Обновляется сам через `@updateURL` — без ручной переустановки |
 | ⌨️ Ctrl+Space | Горячая клавиша на десктопе |
 <!-- features-ru:end -->
 
-### ⚡ Быстрый старт
+### ⚡ Вариант A — Tampermonkey
 
 1. Установи [Tampermonkey](https://www.tampermonkey.net/)
 2. Получи ключ на [console.groq.com/keys](https://console.groq.com/keys)
-3. Открой [ссылку установки скрипта](https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/dist/opencode-voice-dictation.user.js) — скрипт установится в Tampermonkey
+3. Открой [ссылку установки скрипта](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js) — скрипт установится в Tampermonkey
 4. Dashboard → скрипт → **Settings → Includes/Excludes → User matches → Add**: добавь только свой URL OpenCode, например `https://opencode.example.com/*`. Для конкретного порта localhost используй только точное регулярное выражение в **User includes**: `/^http:\/\/localhost:4096\/.*$/`, заменив порт на свой; User matches игнорирует порт. Удали другие широкие localhost-правила. Сохрани и перезагрузи страницу. При необходимости включи Advanced Config mode.
 5. По умолчанию указан несуществующий `https://opencode.invalid/*`: на реальных сайтах скрипт не запускается. Не добавляй `*://*/*`; при обновлении удали старые широкие User matches/includes и отключи отдельную upstream-копию.
 6. На разрешённой странице: меню Tampermonkey → **Set Groq API Key**. Ключ, модель, язык и автоотправка сохраняются в GM storage, не в исходниках. Пустой ключ удаляет его.
 7. Автоотправка по умолчанию **выключена**. Микрофон / Ctrl+Space: старт и стоп; Cancel: отмена. После стопа запись отправляется Groq или выбранному прокси и может тарифицироваться. Текст добавляется в конец, сохраняя упоминания и вложения. Смена сессии отменяет диктовку. Для микрофона нужен HTTPS или localhost и разрешение браузера.
+
+### 🖥️ Вариант B — серверная инъекция (Caddy + Bun + SQLite)
+
+Этот вариант предназначен для self-hosted OpenCode за Caddy и особенно полезен для **обычного Chrome на Android**.
+
+Bun-сервис держит API-ключ только на сервере, Caddy/Bun добавляет голосовой интерфейс в OpenCode, а модель, язык, prompt, temperature и auto-submit сохраняются в SQLite. Полная инструкция: **[server/README.md](server/README.md)**.
+
+Не включайте одновременно серверную инъекцию и Tampermonkey-скрипт для одного и того же origin.
 
 ### 🌐 Кастомный STT endpoint
 
@@ -172,4 +210,4 @@ Covered: native action-row placement and sizing at desktop/narrow widths, toolti
 
 Boundary: browser tests use the built script and a source-shaped V2 fixture, with mocked microphone and Groq. No real recording, API key, paid API call, extension installation, live server, Firefox/mobile, or actual Tampermonkey User-match enforcement was exercised. After installing, check the script is absent on an unrelated site, appears on your scoped OpenCode URL, and persists settings after reload. Keep auto-submit off for your first test.
 
-[Source details and decisions](docs/decisions/0008-scoped-v2-dictation.md), [renamed beta composer support](docs/decisions/0009-renamed-beta-composer.md). Original project by [slaid098](https://github.com/slaid098/opencode-voice-dictation); this fork's install and update files remain on `idkwhodatis/master`.
+[Source details and decisions](docs/decisions/0008-scoped-v2-dictation.md), [renamed beta composer support](docs/decisions/0009-renamed-beta-composer.md). Original project by [slaid098](https://github.com/slaid098/opencode-voice-dictation); this fork's userscript install/update files and server-side edition are maintained in `idkwhodatis/opencode-webui-voice-input`.
