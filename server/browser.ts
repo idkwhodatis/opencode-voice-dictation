@@ -2,13 +2,16 @@
 import { type AudioRecorder, createAudioRecorder } from "../src/audio";
 import {
   type InputTarget, type InsertTarget, captureTarget, insertText,
-  isCurrentTarget, isQuestionPromptOpen, submitPrompt,
+  isCurrentTarget, isQuestionPromptOpen,
 } from "../src/insert";
 import { setupKeyboardShortcut } from "../src/keyboard";
 import { setupUI } from "../src/ui";
 import type { DictationState } from "../src/types";
 import type { VoiceSettings } from "./settings";
+import { createServerControls } from "./controls";
+import { draftSnapshot, sendDraft } from "./send";
 
+type FinishAction = "review" | "send";
 interface Config {
   settings: VoiceSettings;
   apiKeyConfigured: boolean;
@@ -43,8 +46,13 @@ function start() {
   let lastElapsed = -1;
   let config: Config | null = null;
   let ui: ReturnType<typeof setupUI>;
+  let controls: ReturnType<typeof createServerControls> | undefined;
 
-  const setState = (next: DictationState) => { state = next; ui.updateState(next); };
+  const setState = (next: DictationState) => {
+    state = next;
+    ui.updateState(next);
+    controls?.update(next, target?.kind);
+  };
   function reset() {
     clearInterval(ticker);
     ticker = undefined;
@@ -67,37 +75,54 @@ function start() {
       ui.toast("Session or input changed. Dictation cancelled.");
     }
   }
-  async function finish() {
+  async function finish(action: FinishAction) {
+    // Latch one action per recording before awaiting anything (double taps/timer races).
+    if (state !== "recording") return;
     const captured = target;
     const audio = recorder;
     const limits = config;
     const activeController = controller;
     if (!captured || !audio || !limits || !activeController || !isCurrentTarget(captured)) { cancel(); return; }
     const own = generation;
+    const originalDraft = draftSnapshot(captured);
+    let edited = false;
+    const onEdit = () => { edited = true; };
+    captured.editor.addEventListener("input", onEdit);
     setState("processing");
     try {
       const blob = await audio.stop();
       if (own !== generation || !isCurrentTarget(captured)) return;
       if (!blob.size) throw new Error("Recording was empty. Please try again.");
       if (blob.size > limits.maxAudioBytes) throw new Error("Recording is too large. Try a shorter recording.");
-      const result = await request<{ text: string; autoSubmit: boolean }>("transcribe", {
+      // autoSubmit remains in the legacy REST response but never overrides this explicit action.
+      const result = await request<{ text: string }>("transcribe", {
         method: "POST", headers: { "Content-Type": blob.type }, body: blob,
         signal: AbortSignal.any([activeController.signal, AbortSignal.timeout(330000)]),
       });
       if (own !== generation || !isCurrentTarget(captured)) return;
       if (typeof result.text !== "string") throw new Error("Invalid transcript response.");
+      const draftChanged = edited || draftSnapshot(captured) !== originalDraft;
+      captured.editor.removeEventListener("input", onEdit);
       if (!result.text.trim()) ui.toast("No speech detected. Please try again.");
       else if (!insertText(result.text, captured)) ui.toast("Original input is no longer available. Dictation discarded.", true);
-      else if (result.autoSubmit === true && captured.kind === "composer") {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        if (own === generation && !submitPrompt(captured)) ui.toast("Text appended. Auto-submit skipped because Send is unavailable.");
+      else if (action === "send" && captured.kind === "composer") {
+        if (draftChanged) {
+          ui.toast("Text appended. Draft changed during transcription; review it before sending.");
+        } else {
+          const outcome = await sendDraft(captured, activeController.signal);
+          if (own === generation && outcome === "unavailable") ui.toast("Text appended. Send is unavailable; review and send manually.");
+          else if (own === generation && outcome === "changed") ui.toast("Draft changed. Automatic sending cancelled; review it before sending.");
+        }
       }
     } catch (error) {
       if (own === generation && !activeController.signal.aborted) ui.toast(error instanceof Error ? error.message : "Transcription failed.", true);
-    } finally { if (own === generation) reset(); }
+    } finally {
+      captured.editor.removeEventListener("input", onEdit);
+      if (own === generation) reset();
+    }
   }
   async function toggle(kind: InsertTarget) {
-    if (state === "recording") { await finish(); return; }
+    if (state === "recording") { await finish("review"); return; }
     if (state !== "idle") return;
     const captured = captureTarget(kind);
     if (!captured) return;
@@ -118,8 +143,10 @@ function start() {
         if (elapsed !== lastElapsed) {
           lastElapsed = elapsed;
           ui.updateState(state, elapsed);
+          controls?.update(state, target?.kind);
         }
-        if (config && elapsed >= config.maxRecordingSeconds) void finish();
+        // A duration limit is not an explicit request to send a message.
+        if (config && elapsed >= config.maxRecordingSeconds) void finish("review");
       }
     }, 250);
     try {
@@ -143,27 +170,9 @@ function start() {
     }
   }
   ui = setupUI({ onToggle: (kind) => { void toggle(kind); }, onCancel: cancel, onContextChange: checkTarget });
+  controls = createServerControls(() => { void finish("send"); });
   setupKeyboardShortcut(() => { void toggle(isQuestionPromptOpen() ? "question" : "composer"); });
   window.addEventListener("pagehide", cancel);
-
-  function settingsLinks() {
-    for (const controls of document.querySelectorAll(".ocvd-container")) {
-      if (controls.querySelector(".ocvd-settings")) continue;
-      const link = document.createElement("a");
-      link.className = "ocvd-settings";
-      link.href = "/voice/";
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = "⚙";
-      link.title = "Voice settings (server)";
-      link.setAttribute("aria-label", link.title);
-      link.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:28px;color:inherit;text-decoration:none";
-      controls.prepend(link);
-    }
-  }
-  const linksObserver = new MutationObserver(settingsLinks);
-  linksObserver.observe(document.body, { subtree: true, childList: true });
-  settingsLinks();
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
 else start();

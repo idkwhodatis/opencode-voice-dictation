@@ -12,6 +12,10 @@
     <a href="/">← OpenCode</a>
     <h1>Voice settings</h1>
     <p>Saved on your server and shared by your devices. No API key is stored in this browser.</p>
+    <h2>Choose when you finish recording</h2>
+    <p><strong>Stop and review</strong> inserts an editable draft into OpenCode. Review, change, delete, or send it using OpenCode's normal controls.</p>
+    <p><strong>Transcribe and send</strong> inserts the transcript and clicks OpenCode's Send button when ready. This sends the entire draft, including any text or attachments already in the composer.</p>
+    <p>There is no global auto-send switch. Stopping with Ctrl+Space or reaching the recording time limit always leaves a draft for review. Question inputs are review-only.</p>
     <p id="key-status">Checking server configuration…</p>
     <form id="settings">
       <fieldset id="fields" disabled>
@@ -25,8 +29,6 @@
         <textarea id="whisperPrompt" name="whisperPrompt" rows="4" maxlength="2000" placeholder="Optional names or vocabulary to help recognition"></textarea>
         <label for="temperature">Temperature</label>
         <input id="temperature" name="temperature" type="number" min="0" max="1" step="0.01" required>
-        <label class="check"><input id="autoSubmit" name="autoSubmit" type="checkbox">Send immediately after transcription</label>
-        <small>Off by default. When enabled, only a verified Send button is clicked—never Stop or a question's submit button.</small>
         <button type="submit">Save settings</button>
       </fieldset>
     </form>

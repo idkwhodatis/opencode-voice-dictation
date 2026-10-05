@@ -4,11 +4,12 @@ const fields = document.querySelector("#fields");
 const status = document.querySelector("#status");
 const keyStatus = document.querySelector("#key-status");
 let previous = null;
-const names = ["model", "language", "whisperPrompt", "temperature", "autoSubmit"];
+// Delivery is chosen per recording, not through the legacy autoSubmit setting.
+const names = ["model", "language", "whisperPrompt", "temperature"];
 function values() {
   return Object.fromEntries(names.map((name) => {
     const input = form.elements.namedItem(name);
-    return [name, name === "autoSubmit" ? input.checked : name === "temperature" ? Number(input.value) : input.value];
+    return [name, name === "temperature" ? Number(input.value) : input.value];
   }));
 }
 async function api(init) {
@@ -23,11 +24,7 @@ async function api(init) {
   return data;
 }
 function show(data) {
-  for (const name of names) {
-    const input = form.elements.namedItem(name);
-    if (name === "autoSubmit") input.checked = data.settings[name];
-    else input.value = data.settings[name];
-  }
+  for (const name of names) form.elements.namedItem(name).value = data.settings[name];
   previous = data.settings;
   keyStatus.textContent = data.apiKeyConfigured ? "✓ Server API key is configured." : "API key is missing or unreadable. Check GROQ_API_KEY_FILE on the server.";
   keyStatus.dataset.error = String(!data.apiKeyConfigured);
