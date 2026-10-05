@@ -1,0 +1,50 @@
+# OPTIONAL: injection directly inside Caddy. Requires this nonstandard module:
+#   xcaddy build --with github.com/caddyserver/replace-response
+# The supplied stock Caddyfile is the preferred option when avoiding custom builds.
+{$VOICE_SITE} {
+	basic_auth {
+		opencode {$VOICE_AUTH_HASH}
+	}
+	handle /voice {
+		redir /voice/ 308
+	}
+	handle /voice/* {
+		reverse_proxy 127.0.0.1:4097 {
+			header_up X-OCVD-Proxy-Token {$VOICE_PROXY_TOKEN}
+		}
+	}
+	@documents {
+		method GET
+		header Accept *text/html*
+		not header Upgrade *
+		not path /api/* /event /global/event
+	}
+	handle @documents {
+		route {
+			replace {
+				match {
+					status 200
+					header Content-Type text/html*
+				}
+				"</head>" "<script id=\"ocvd-server-script\" src=\"/voice/voice.js\" defer></script></head>"
+			}
+			reverse_proxy 127.0.0.1:4096 {
+				header_up Accept-Encoding identity
+				header_up -If-None-Match
+				header_up -If-Modified-Since
+				header_up -Range
+				header_up -If-Range
+				header_down -ETag
+				header_down -Last-Modified
+				header_down -Content-MD5
+				header_down -Digest
+				header_down -Content-Digest
+				header_down -Accept-Ranges
+				header_down Cache-Control no-store
+			}
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:4096
+	}
+}

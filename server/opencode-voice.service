@@ -1,0 +1,20 @@
+# User service: ~/.config/systemd/user/opencode-voice.service
+# Adjust the repository location and Bun path if yours differ.
+[Unit]
+Description=OpenCode voice injection and transcription (Bun)
+After=network.target opencode-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/repos/opencode-voice-dictation/server
+ExecStart=%h/.bun/bin/bun run main.ts
+EnvironmentFile=%h/.config/opencode-voice/voice.env
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+TimeoutStopSec=90
+# Do not enable MemoryDenyWriteExecute: Bun/JavaScriptCore needs JIT mappings.
+
+[Install]
+WantedBy=default.target

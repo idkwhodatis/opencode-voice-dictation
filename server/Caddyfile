@@ -1,0 +1,37 @@
+# Stock Caddy: no custom modules needed.
+# Merge these handlers into your EXISTING authenticated OpenCode site.
+# Required Caddy environment: VOICE_SITE, VOICE_AUTH_HASH, VOICE_PROXY_TOKEN.
+# Use your existing authentication instead of basic_auth where appropriate;
+# authentication MUST cover /voice/* as well as the OpenCode routes.
+{$VOICE_SITE} {
+	basic_auth {
+		opencode {$VOICE_AUTH_HASH}
+	}
+
+	handle /voice {
+		redir /voice/ 308
+	}
+	handle /voice/* {
+		reverse_proxy 127.0.0.1:4097 {
+			# Overwrite, never append or trust a client-supplied value.
+			header_up X-OCVD-Proxy-Token {$VOICE_PROXY_TOKEN}
+		}
+	}
+
+	@documents {
+		method GET HEAD
+		header Accept *text/html*
+		not header Upgrade *
+		not path /api/* /event /global/event
+	}
+	handle @documents {
+		# Bun fetches only the HTML shell from OpenCode and injects voice.js.
+		reverse_proxy 127.0.0.1:4097 {
+			header_up X-OCVD-Proxy-Token {$VOICE_PROXY_TOKEN}
+		}
+	}
+	handle {
+		# Streaming API, WebSocket, assets and uploads do NOT pass through Bun.
+		reverse_proxy 127.0.0.1:4096
+	}
+}

@@ -1,0 +1,51 @@
+name: Bun voice server
+on:
+  push:
+    paths:
+      - 'server/**'
+      - 'src/**'
+      - 'biome.json'
+      - '.github/workflows/server.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'src/**'
+      - 'biome.json'
+      - '.github/workflows/server.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: npm ci
+      - run: bun install
+        working-directory: server
+      - run: bun run typecheck
+        working-directory: server
+      - run: bun test service.test.ts
+        working-directory: server
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config server/playwright.config.ts
+      - name: Check existing userscript and committed distribution
+        run: |
+          npm run check
+          git diff --exit-code -- dist/
+      - name: Validate stock Caddy configuration
+        env:
+          VOICE_SITE: 'http://localhost:18080'
+          VOICE_PROXY_TOKEN: 'test-only-proxy-token-that-is-long-enough'
+        run: |
+          curl --fail --location --silent --show-error 'https://caddyserver.com/api/download?os=linux&arch=amd64' -o /tmp/caddy
+          chmod +x /tmp/caddy
+          export VOICE_AUTH_HASH=$(/tmp/caddy hash-password --plaintext test-only-password)
+          /tmp/caddy adapt --config server/Caddyfile --adapter caddyfile --validate >/dev/null

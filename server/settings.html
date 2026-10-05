@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenCode voice settings</title>
+  <link rel="stylesheet" href="/voice/settings.css">
+  <script src="/voice/settings.js" defer></script>
+</head>
+<body>
+  <main>
+    <a href="/">← OpenCode</a>
+    <h1>Voice settings</h1>
+    <p>Saved on your server and shared by your devices. No API key is stored in this browser.</p>
+    <p id="key-status">Checking server configuration…</p>
+    <form id="settings">
+      <fieldset id="fields" disabled>
+        <label for="model">Model</label>
+        <input id="model" name="model" list="models" required maxlength="128" autocomplete="off">
+        <datalist id="models"><option value="whisper-large-v3-turbo"><option value="whisper-large-v3"></datalist>
+        <label for="language">Language</label>
+        <input id="language" name="language" placeholder="Automatic (or en, zh, …)" maxlength="3" pattern="[a-z]{2,3}|" autocomplete="off">
+        <small>Leave empty for automatic language detection, including mixed-language input.</small>
+        <label for="whisperPrompt">Transcription context</label>
+        <textarea id="whisperPrompt" name="whisperPrompt" rows="4" maxlength="2000" placeholder="Optional names or vocabulary to help recognition"></textarea>
+        <label for="temperature">Temperature</label>
+        <input id="temperature" name="temperature" type="number" min="0" max="1" step="0.01" required>
+        <label class="check"><input id="autoSubmit" name="autoSubmit" type="checkbox">Send immediately after transcription</label>
+        <small>Off by default. When enabled, only a verified Send button is clicked—never Stop or a question's submit button.</small>
+        <button type="submit">Save settings</button>
+      </fieldset>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <p class="note">Your API-key file and transcription endpoint are configured on the server, not through this page. Recordings are sent to your configured speech provider; this service does not save recordings or transcripts.</p>
+  </main>
+</body>
+</html>

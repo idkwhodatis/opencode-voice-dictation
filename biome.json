@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["node_modules", "dist", "coverage", "*.user.js"]
+    "ignore": ["node_modules", "dist", "coverage", "*.user.js", "server"]
   },
   "formatter": {
     "enabled": true,
