@@ -1,8 +1,10 @@
-// Verified against anomalyco/opencode 907b3bc (see ADR 0008).
-// V2's form is prompt-input-v2; its editable child is still prompt-input.
-const EDITOR_SELECTOR = '[data-component="prompt-input"][contenteditable="true"]';
+// Verified against dev 907b3bc and beta e5ecb571 (ADRs 0008 and 0009).
+// The beta composer renamed both its form and editor; stable V2 retains prompt-input.
+const EDITOR_SELECTOR =
+  '[data-component="composer-editor"][contenteditable="true"], [data-component="prompt-input"][contenteditable="true"]';
 const QUESTION_SELECTOR = 'textarea[data-slot="question-custom-input"]:not(:disabled)';
 const COMPOSER_SELECTORS = [
+  'form[data-component="composer"]',
   '[data-component="prompt-input-v2"]',
   '[data-component="session-prompt-dock"]',
   '[data-component="session-new-composer"]',
@@ -108,15 +110,15 @@ export function insertText(text: string, target: InputTarget): boolean {
 export function submitPrompt(target: InputTarget): boolean {
   if (target.kind !== "composer" || !isCurrentTarget(target)) return false;
   const button = target.composer.querySelector<HTMLButtonElement>(
-    'button[data-action="prompt-submit"]',
+    'button[data-action="composer-submit"], button[data-action="prompt-submit"]',
   );
-  // OpenCode reuses this button for Stop and shell execution. Only click Send.
-  if (
-    !button ||
-    button.disabled ||
-    button.getAttribute("aria-disabled") === "true" ||
-    !button.matches('[data-icon="arrow-up"]')
-  )
+  // Both layouts reuse their submit button for Stop and shell execution. The
+  // beta IconButton uses a sprite instead of data-icon; do not guess from labels.
+  const isSend =
+    button?.matches('[data-icon="arrow-up"]') ||
+    button?.querySelector('svg[data-slot="icon-svg"] use[href="#opencode-v2-icon-arrow-up"]');
+  // Click only a verified Send icon in the original composer.
+  if (!button || button.disabled || button.getAttribute("aria-disabled") === "true" || !isSend)
     return false;
   button.click();
   return true;

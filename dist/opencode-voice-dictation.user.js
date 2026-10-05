@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenCode Voice Dictation
 // @namespace    https://github.com/idkwhodatis/opencode-voice-dictation
-// @version      1.1.1
+// @version      1.1.2
 // @author       slaid098
 // @description  Voice dictation for OpenCode web using Whisper (Groq API) - works on PC and mobile
 // @icon         https://raw.githubusercontent.com/idkwhodatis/opencode-voice-dictation/master/assets/icon.png
@@ -172,9 +172,10 @@
       return false;
     }
   }
-  const EDITOR_SELECTOR = '[data-component="prompt-input"][contenteditable="true"]';
+  const EDITOR_SELECTOR = '[data-component="composer-editor"][contenteditable="true"], [data-component="prompt-input"][contenteditable="true"]';
   const QUESTION_SELECTOR = 'textarea[data-slot="question-custom-input"]:not(:disabled)';
   const COMPOSER_SELECTORS = [
+    'form[data-component="composer"]',
     '[data-component="prompt-input-v2"]',
     '[data-component="session-prompt-dock"]',
     '[data-component="session-new-composer"]',
@@ -257,9 +258,10 @@
   function submitPrompt(target) {
     if (target.kind !== "composer" || !isCurrentTarget(target)) return false;
     const button = target.composer.querySelector(
-      'button[data-action="prompt-submit"]'
+      'button[data-action="composer-submit"], button[data-action="prompt-submit"]'
     );
-    if (!button || button.disabled || button.getAttribute("aria-disabled") === "true" || !button.matches('[data-icon="arrow-up"]'))
+    const isSend = (button == null ? void 0 : button.matches('[data-icon="arrow-up"]')) || (button == null ? void 0 : button.querySelector('svg[data-slot="icon-svg"] use[href="#opencode-v2-icon-arrow-up"]'));
+    if (!button || button.disabled || button.getAttribute("aria-disabled") === "true" || !isSend)
       return false;
     button.click();
     return true;

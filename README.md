@@ -36,7 +36,7 @@ A Tampermonkey/Violentmonkey userscript — a mic button in the OpenCode web UI.
 | ⚡ Auto-submit | Sends transcription to the agent after dictation (toggleable) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` via Groq API |
 | 📱 Mobile via Firefox | Firefox supports extensions; mobile Chrome doesn't |
-| ✅ Current V2 contract | Source-verified at OpenCode `907b3bc`; mocked Chromium tests (see below) |
+| ✅ Current V2 contract | Stable and renamed beta composer: source-verified at `907b3bc` / `e5ecb571`; mocked Chromium tests |
 | 🔄 Auto-update | Updates itself via `@updateURL` — no manual reinstall |
 | ⌨️ Ctrl+Space | Desktop hotkey to start/stop recording |
 <!-- features-en:end -->
@@ -107,7 +107,7 @@ The prompt biases the model toward the prompt's language. An English prompt with
 | ⚡ Автоотправка | Отправляет транскрипцию агенту после диктовки (опционально) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` через Groq API |
 | 📱 Мобайл через Firefox | Firefox поддерживает расширения; mobile Chrome — нет |
-| ✅ V2 | DOM проверен по исходникам OpenCode `907b3bc`; тесты Chromium с моками |
+| ✅ V2 | Stable и beta DOM проверены по исходникам `907b3bc` / `e5ecb571`; тесты Chromium с моками |
 | 🔄 Автообновление | Обновляется сам через `@updateURL` — без ручной переустановки |
 | ⌨️ Ctrl+Space | Горячая клавиша на десктопе |
 <!-- features-ru:end -->
@@ -172,4 +172,4 @@ Covered: lazy/initial composer, new/replaced/switching sessions, duplicate injec
 
 Boundary: browser tests use the built script and a source-shaped V2 fixture, with mocked microphone and Groq. No real recording, API key, paid API call, extension installation, live server, Firefox/mobile, or actual Tampermonkey User-match enforcement was exercised. After installing, check the script is absent on an unrelated site, appears on your scoped OpenCode URL, and persists settings after reload. Keep auto-submit off for your first test.
 
-[Source details and decisions](docs/decisions/0008-scoped-v2-dictation.md). Original project by [slaid098](https://github.com/slaid098/opencode-voice-dictation); this fork's install and update files remain on `idkwhodatis/master`.
+[Source details and decisions](docs/decisions/0008-scoped-v2-dictation.md), [renamed beta composer support](docs/decisions/0009-renamed-beta-composer.md). Original project by [slaid098](https://github.com/slaid098/opencode-voice-dictation); this fork's install and update files remain on `idkwhodatis/master`.

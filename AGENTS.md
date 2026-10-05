@@ -25,7 +25,7 @@ This fork distributes committed `dist/` artifacts on `master`. Install/update UR
 
 ## Composer selectors (brief)
 
-`COMPOSER_SELECTORS` in `src/ui.ts` — order = detection priority (primary → fallback). Current order: `prompt-input-v2` → `session-prompt-dock` → `session-new-composer` → `session-composer`. Do NOT change the order without an ADR. `session-prompt-dock` is a wrapper for three conditionally-rendered blocks; the guard checks for a real composer (`prompt-input`/`prompt-input-v2`) inside the dock. See ADR 0001–0004 in `docs/decisions/`.
+`COMPOSER_SELECTORS` in `src/insert.ts` — order = detection priority (primary → fallback). Current order: beta `form[data-component="composer"]` → `prompt-input-v2` → `session-prompt-dock` → `session-new-composer` → `session-composer`. ADR 0009 documents the beta addition; preserve both editor dialects and the exact Send-icon guards. Do NOT change the order without an ADR. `session-prompt-dock` is a wrapper for three conditionally-rendered blocks; the guard checks for a real composer (`prompt-input`/`prompt-input-v2`) inside the dock. See ADR 0001–0004 in `docs/decisions/`.
 
 ## Stack
 

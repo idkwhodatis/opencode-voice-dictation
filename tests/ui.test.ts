@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setupUI } from "../src/ui.js";
-import { mountComposer } from "./fixtures/composer.js";
+import { mountComposer, mountRenamedComposer } from "./fixtures/composer.js";
 let ui: ReturnType<typeof setupUI> | undefined;
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 afterEach(() => {
@@ -57,4 +57,16 @@ describe("mutation-driven UI lifecycle", () => {
     await flush();
     expect(document.querySelector(".ocvd-btn")).toBeNull();
   });
+});
+
+it("mounts one control in renamed beta composer and recreates it on session switch", async () => {
+  mountRenamedComposer();
+  start();
+  expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
+  expect(
+    document.querySelector('form[data-component="composer"] > .ocvd-container'),
+  ).not.toBeNull();
+  mountRenamedComposer();
+  await flush();
+  expect(document.querySelectorAll(".ocvd-btn")).toHaveLength(1);
 });

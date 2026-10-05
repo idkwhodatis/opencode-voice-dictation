@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { captureTarget, insertText, isCurrentTarget, submitPrompt } from "../src/insert.js";
-import { mountComposer } from "./fixtures/composer.js";
+import { mountComposer, mountRenamedComposer } from "./fixtures/composer.js";
 
 function target(kind: "composer" | "question" = "composer") {
   const result = captureTarget(kind);
@@ -99,5 +99,50 @@ describe("source-verified composer adapter", () => {
     expect(input).toHaveBeenCalledTimes(1);
     expect(submitPrompt(snapshot)).toBe(false);
     expect(captureTarget()).toBeNull();
+  });
+});
+
+describe("renamed beta composer regression", () => {
+  it("finds the actual composer-editor and appends without replacing rich nodes", () => {
+    const editor = mountRenamedComposer();
+    editor.innerHTML =
+      'Review <span contenteditable="false" data-mention="file" data-path="fixture.ts">@fixture.ts</span>';
+    const mention = editor.firstElementChild;
+    const attachments = document.querySelector('[data-slot="composer-attachments"]');
+    const snapshot = target();
+    expect(snapshot.editor).toBe(editor);
+    expect(snapshot.composer.getAttribute("data-component")).toBe("composer");
+    const onInput = vi.fn();
+    editor.addEventListener("input", onInput);
+    expect(insertText("add tests", snapshot)).toBe(true);
+    expect(editor.textContent).toBe("Review @fixture.ts add tests");
+    expect(editor.firstElementChild).toBe(mention);
+    expect(document.querySelector('[data-slot="composer-attachments"]')).toBe(attachments);
+    expect(onInput).toHaveBeenCalledOnce();
+  });
+  it("uses the beta SVG sprite to distinguish Send from Stop and shell", () => {
+    mountRenamedComposer();
+    const snapshot = target();
+    const button = snapshot.composer.querySelector("button") as HTMLButtonElement;
+    const icon = button.querySelector("use") as SVGUseElement;
+    const click = vi.fn();
+    button.addEventListener("click", click);
+    expect(submitPrompt(snapshot)).toBe(true);
+    button.disabled = true;
+    expect(submitPrompt(snapshot)).toBe(false);
+    button.disabled = false;
+    for (const name of ["stop", "arrow-undo-down", "unknown"]) {
+      icon.setAttribute("href", `#opencode-v2-icon-${name}`);
+      expect(submitPrompt(snapshot)).toBe(false);
+    }
+    expect(click).toHaveBeenCalledOnce();
+  });
+  it("rejects stale or disabled beta editors", () => {
+    const editor = mountRenamedComposer();
+    const snapshot = target();
+    editor.contentEditable = "false";
+    expect(captureTarget()).toBeNull();
+    mountRenamedComposer();
+    expect(insertText("wrong editor", snapshot)).toBe(false);
   });
 });

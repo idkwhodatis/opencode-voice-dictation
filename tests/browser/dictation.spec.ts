@@ -19,8 +19,19 @@ document.querySelector('[data-action="prompt-submit"]').onclick = () => {
 };
 </script>`;
 
-test.beforeEach(async ({ page }) => {
-  await page.route("**/*", (route) => route.fulfill({ contentType: "text/html", body: fixture }));
+test.beforeEach(async ({ page }, testInfo) => {
+  const html =
+    testInfo.project.name === "renamed-composer"
+      ? fixture
+          .replaceAll('data-component="prompt-input-v2"', 'data-component="composer"')
+          .replaceAll('data-component="prompt-input"', 'data-component="composer-editor"')
+          .replaceAll('data-action="prompt-submit"', 'data-action="composer-submit"')
+          .replace(
+            'data-icon="arrow-up">Send',
+            '><svg data-slot="icon-svg"><use href="#opencode-v2-icon-arrow-up"></use></svg>Send',
+          )
+      : fixture;
+  await page.route("**/*", (route) => route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("https://opencode-fixture.test/project/session/first");
   await page.evaluate(() => {
     const store: Record<string, unknown> = { groqApiKey: "TEST_ONLY_NOT_A_REAL_KEY" };
@@ -104,7 +115,9 @@ test("switching sessions cancels pending transcription and late results", async 
     window.dispatchEvent(new Event("urlchange"));
   });
   await page.evaluate("window.respond()");
-  await expect(page.locator('[data-component="prompt-input"]')).toHaveText("Review @a.ts");
+  await expect(
+    page.locator('[data-component="prompt-input"], [data-component="composer-editor"]'),
+  ).toHaveText("Review @a.ts");
   await expect(page.locator("#sent")).toHaveText("0");
   await expect(mic).toHaveClass("ocvd-btn");
 });
