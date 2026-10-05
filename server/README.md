@@ -1,13 +1,13 @@
 # Server-injected edition: Caddy + Bun
 
-Voice input in **stock Chrome on Android**, without an extension, Tampermonkey, or an OpenCode fork. The existing userscript and its committed `dist/` remain unchanged. This is a separate distribution, version 0.1.0.
+Voice input in **any modern browser on any device**, without an extension, Tampermonkey, or an OpenCode fork. The existing userscript and its committed `dist/` remain unchanged. This is a separate distribution, version 0.1.0.
 
 Bun serves the injected browser bundle, proxies transcription requests, reads the provider key from a private local file, and persists non-secret settings using built-in `bun:sqlite`. There are **no runtime npm dependencies and no Node server**. Keep the full repository checkout: the browser build imports the existing `src/audio.ts`, `src/insert.ts`, `src/ui.ts`, and keyboard code rather than copying their compatibility logic.
 
 ## Traffic layout
 
 ```text
-Android Chrome → authenticated HTTPS Caddy
+Modern browser/device → authenticated HTTPS Caddy
   /voice/voice.js     → Bun :4097 (browser bundle)
   /voice/            → Bun :4097 (mobile-friendly settings page)
   /voice/config      → Bun :4097 (GET / PATCH → SQLite)
@@ -103,9 +103,9 @@ If OpenCode has its own Basic authentication, forward its required Authorization
 
 The examples reserve `/voice` at the origin root. `PUBLIC_ORIGIN` is not a subpath setting. With the optional replacement-module configuration, do not also route HTML through the Bun injector: select one injection method. The optional module matches a normal lowercase `</head>`; the stock Bun injector also handles other HTML casing and documents without a head.
 
-## 4. Open it on Android
+## 4. Open it in any modern browser
 
-Open the usual OpenCode HTTPS address in Chrome. The microphone appears beside the composer controls, with a settings gear linking to `/voice/`. The certificate must be trusted **by Android Chrome**; trusting a private CA on Windows does not establish trust on the phone. Plain LAN HTTP is not suitable for microphone access.
+Open the usual OpenCode HTTPS address in any modern browser. The microphone appears beside the composer controls, with a settings gear linking to `/voice/`. Because the injected code is served as part of the site, no userscript or browser extension is required. The browser/device must support the standard microphone/media APIs used by the app and must trust the site's certificate. Plain LAN HTTP is not suitable for microphone access.
 
 Tap once to record and again to transcribe. The existing adapters handle both supported V2/beta composer dialects, questions, append-only insertion, and verified Send-button checks. Recording, pending permission requests, and transcription are cancelled on session/input changes, cancellation, or page exit. Ctrl+Space remains available on desktop. Disable the userscript on this origin when using the injected edition; the shared initialization marker prevents two active instances, but the first one loaded would otherwise win.
 
@@ -158,6 +158,6 @@ npx playwright install chromium
 npx playwright test --config server/playwright.config.ts
 ```
 
-The dedicated read-only `Bun voice server` workflow runs native Bun tests, strict type checking, mobile-viewport Chromium tests with synthetic audio, the existing userscript suite/build, and stock Caddy configuration validation. Root Biome and Vitest coverage remain scoped away from this separate Bun distribution; the original userscript coverage thresholds are unchanged. No test calls a real paid speech API or uses your credentials. A real Android microphone/device and your existing Caddy installation still require a deployment smoke test.
+The dedicated read-only `Bun voice server` workflow runs native Bun tests, strict type checking, mobile-viewport Chromium tests with synthetic audio, the existing userscript suite/build, and stock Caddy configuration validation. Root Biome and Vitest coverage remain scoped away from this separate Bun distribution; the original userscript coverage thresholds are unchanged. No test calls a real paid speech API or uses your credentials. A real browser/device microphone and your existing Caddy installation still require a deployment smoke test.
 
 Reference documentation: [Bun HTTP](https://bun.com/docs/runtime/http/server), [Bun SQLite](https://bun.com/docs/runtime/sqlite), [Groq speech-to-text](https://console.groq.com/docs/speech-to-text), [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [optional replacement module](https://github.com/caddyserver/replace-response).
