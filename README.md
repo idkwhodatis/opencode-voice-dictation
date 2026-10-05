@@ -5,7 +5,7 @@ Voice input for OpenCode WebUI is available through **two supported installation
 | Path | Best for | How it works |
 | --- | --- | --- |
 | **A. Tampermonkey userscript** | Desktop browsers and browsers that support userscripts/extensions | Injects the mic controls in the browser. Your STT settings/API key live in userscript storage. **[Install the userscript](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
-| **B. Server-side injection (Caddy + Bun + SQLite)** | **Stock Chrome on Android**, or self-hosted OpenCode behind a reverse proxy | Caddy/Bun injects the same voice UI into OpenCode. The provider API key stays in a private server-side file; model/language/prompt settings are persisted in SQLite. **[Server deployment guide](server/README.md)** |
+| **B. Server-side injection (Caddy + Bun + SQLite)** | **Any modern browser on any device**, especially when userscripts/extensions are unavailable | Caddy/Bun injects the same voice UI into OpenCode. The provider API key stays in a private server-side file; model/language/prompt settings are persisted in SQLite. **[Server deployment guide](server/README.md)** |
 
 **Choose one path for a given OpenCode origin.** Do not intentionally run both at the same time.
 
@@ -26,7 +26,7 @@ Needed a way to dictate to agents from a phone. Stock Android voice input doesn'
 Two deployment modes for the same OpenCode WebUI voice workflow:
 
 - **Tampermonkey/Violentmonkey userscript** — quickest setup where userscripts are supported.
-- **Server-side injection with Caddy + Bun + SQLite** — designed for stock Chrome on Android and self-hosted OpenCode behind a reverse proxy. The speech-provider key remains on the server.
+- **Server-side injection with Caddy + Bun + SQLite** — browser/device independent for self-hosted OpenCode behind a reverse proxy. It works in any modern browser with standard microphone/media APIs, without installing a userscript or extension. The speech-provider key remains on the server.
 <!-- summary-en:end -->
 
 <!-- features-en:start -->
@@ -38,7 +38,7 @@ Two deployment modes for the same OpenCode WebUI voice workflow:
 | 🌍 Language | `ru`, `en`, or auto-detect |
 | ⚡ Auto-submit | Sends transcription to the agent after dictation (toggleable) |
 | 🧠 Whisper (Groq) | `whisper-large-v3` / `whisper-large-v3-turbo` via Groq API |
-| 📱 Mobile | Tampermonkey path works in browsers with userscript support; server-side injection works in stock Chrome on Android |
+| 🌐 Browser support | Tampermonkey requires userscript support; server-side injection works in any modern browser/device with standard microphone/media APIs |
 | ✅ Current V2 contract | Stable and renamed beta composer: source-verified at `907b3bc` / `e5ecb571`; mocked Chromium tests |
 | 🔄 Auto-update | Updates itself via `@updateURL` — no manual reinstall |
 | ⌨️ Ctrl+Space | Desktop hotkey to start/stop recording |
@@ -60,7 +60,7 @@ Microphone access requires HTTPS or localhost and browser permission. The script
 
 ### 🖥️ Path B — Server-side injection (Caddy + Bun + SQLite)
 
-Use this path when OpenCode is self-hosted behind Caddy, especially if you want voice input in **stock Chrome on Android**.
+Use this path when OpenCode is self-hosted behind Caddy and you want voice input to work **across modern browsers and devices without installing anything client-side**.
 
 The server edition:
 
