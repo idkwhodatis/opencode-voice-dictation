@@ -1,7 +1,7 @@
 // A separate distribution: reuse the tested userscript DOM/audio modules, not GM APIs.
 import { type AudioRecorder, createAudioRecorder } from "../src/audio";
 import {
-  type InputTarget, type InsertTarget, captureTarget, insertText,
+  type InputTarget, type InsertTarget, captureTarget,
   isCurrentTarget, isQuestionPromptOpen,
 } from "../src/insert";
 import { setupKeyboardShortcut } from "../src/keyboard";
@@ -9,6 +9,7 @@ import { setupUI } from "../src/ui";
 import type { DictationState } from "../src/types";
 import type { VoiceSettings } from "./settings";
 import { createServerControls } from "./controls";
+import { createCaretTracker, insertAtCaret } from "./caret";
 import { draftSnapshot, sendDraft } from "./send";
 
 type FinishAction = "review" | "send";
@@ -36,6 +37,7 @@ function start() {
   const marker = "data-ocvd-initialized";
   if (document.documentElement.hasAttribute(marker)) return;
   document.documentElement.setAttribute(marker, "server");
+  const caret = createCaretTracker();
   let recorder: AudioRecorder | null = null;
   let target: InputTarget | null = null;
   let controller: AbortController | null = null;
@@ -84,6 +86,7 @@ function start() {
     const activeController = controller;
     if (!captured || !audio || !limits || !activeController || !isCurrentTarget(captured)) { cancel(); return; }
     const own = generation;
+    const insertion = caret.freeze(captured);
     const originalDraft = draftSnapshot(captured);
     let edited = false;
     const onEdit = () => { edited = true; };
@@ -104,13 +107,14 @@ function start() {
       const draftChanged = edited || draftSnapshot(captured) !== originalDraft;
       captured.editor.removeEventListener("input", onEdit);
       if (!result.text.trim()) ui.toast("No speech detected. Please try again.");
-      else if (!insertText(result.text, captured)) ui.toast("Original input is no longer available. Dictation discarded.", true);
-      else if (action === "send" && captured.kind === "composer") {
-        if (draftChanged) {
-          ui.toast("Text appended. Draft changed during transcription; review it before sending.");
-        } else {
+      else {
+        const inserted = insertAtCaret(result.text, captured, insertion, draftChanged);
+        if (!inserted.inserted) ui.toast("Original input is no longer available. Dictation discarded.", true);
+        else if (inserted.fallback) {
+          ui.toast("Draft changed or saved cursor unavailable. Text appended for review; send manually.");
+        } else if (action === "send" && captured.kind === "composer") {
           const outcome = await sendDraft(captured, activeController.signal);
-          if (own === generation && outcome === "unavailable") ui.toast("Text appended. Send is unavailable; review and send manually.");
+          if (own === generation && outcome === "unavailable") ui.toast("Text inserted. Send is unavailable; review and send manually.");
           else if (own === generation && outcome === "changed") ui.toast("Draft changed. Automatic sending cancelled; review it before sending.");
         }
       }
