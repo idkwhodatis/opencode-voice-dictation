@@ -149,11 +149,20 @@ for (const blocked of ["stop", "terminal", "disabled", "aria-disabled"]) {
       else button.dataset.icon = blocked;
     }, blocked);
     await record(page);
-    await page.getByRole("button", { name: "Transcribe and send", exact: true }).tap();
+    if (blocked === "stop" || blocked === "terminal") {
+      // Stop/shell retain their native meaning; no extra send control is injected.
+      await expect(page.getByRole("button", { name: "Transcribe and send", exact: true })).toHaveCount(0);
+      await expect(page.locator(nativeSelector)).toHaveAttribute("data-icon", blocked);
+      await page.getByRole("button", { name: "Stop and review", exact: true }).tap();
+    } else {
+      await page.getByRole("button", { name: "Transcribe and send", exact: true }).tap();
+    }
     await idle(page);
     await expect(page.locator(editorSelector)).toContainText("Hello 你好");
     expect(await page.evaluate("window.sendCount")).toBe(0);
-    await expect(page.locator("#opencode-voice-toast")).toContainText("Send is unavailable");
+    if (blocked === "disabled" || blocked === "aria-disabled") {
+      await expect(page.locator("#opencode-voice-toast")).toContainText("Send is unavailable");
+    }
   });
 }
 
@@ -292,4 +301,128 @@ test("settings persist through REST without a global auto-send switch", async ({
   expect(config.settings.model).toBe("whisper-large-v3");
   expect(config.settings.language).toBe("zh");
   expect(JSON.stringify(config)).not.toContain("test-key-never-sent-to-browser");
+});
+
+test("recording borrows the original button, never inserts or clones a Send button", async ({ page }) => {
+  await page.goto("/project/session");
+  await reactiveComposer(page);
+  const before = await page.locator("button").count();
+  await page.evaluate((selector) => {
+    const button = document.querySelector<HTMLButtonElement>(selector)!;
+    button.title = "Original title"; button.setAttribute("aria-label", "Original Send");
+    Object.assign(window, { originalButton: button, originalClick: button.onclick });
+  }, nativeSelector);
+  await record(page);
+  expect(await page.locator("button").count()).toBe(before);
+  await expect(page.locator(".ocvd-container .ocvd-send")).toHaveCount(0);
+  await expect(page.locator(nativeSelector)).toBeEnabled();
+  expect(await page.evaluate((selector) => {
+    const saved = window as unknown as { originalButton: HTMLButtonElement; originalClick: unknown };
+    const button = document.querySelector<HTMLButtonElement>(selector)!;
+    return button === saved.originalButton && button.onclick === saved.originalClick;
+  }, nativeSelector)).toBe(true);
+  await page.getByRole("button", { name: "Cancel dictation", exact: true }).tap();
+  await idle(page);
+  await expect(page.locator(nativeSelector)).toBeDisabled();
+  await expect(page.locator(nativeSelector)).toHaveAttribute("title", "Original title");
+  await expect(page.locator(nativeSelector)).toHaveAttribute("aria-label", "Original Send");
+  expect(await page.locator(nativeSelector).evaluate((button) => Object.hasOwn(button, "disabled"))).toBe(false);
+  await page.locator(editorSelector).fill("Normal manually typed draft");
+  await expect(page.locator(nativeSelector)).toBeEnabled();
+  await page.locator(nativeSelector).tap();
+  expect(await page.evaluate("window.sendCount")).toBe(1);
+});
+
+test("cancellation preserves same-value framework disabled writes and new labels", async ({ page }) => {
+  await page.goto("/project/session");
+  await reactiveComposer(page);
+  await record(page);
+  await page.evaluate((selector) => {
+    const button = document.querySelector<HTMLButtonElement>(selector)!;
+    button.disabled = false; // Already enabled by voice: still real app state.
+    button.title = "New native title";
+    button.setAttribute("aria-label", "New native label");
+  }, nativeSelector);
+  await page.getByRole("button", { name: "Cancel dictation", exact: true }).tap();
+  await idle(page);
+  await expect(page.locator(nativeSelector)).toBeEnabled();
+  await expect(page.locator(nativeSelector)).toHaveAttribute("title", "New native title");
+  await expect(page.locator(nativeSelector)).toHaveAttribute("aria-label", "New native label");
+});
+
+test("replacement native button is intercepted without losing its own click listener", async ({ page }) => {
+  await page.goto("/project/session");
+  await record(page);
+  await page.evaluate((selector) => {
+    const old = document.querySelector(selector)!;
+    const fresh = document.createElement("button");
+    fresh.type = "button"; fresh.dataset.action = "composer-submit"; fresh.dataset.icon = "arrow-up";
+    fresh.textContent = "Send";
+    fresh.onclick = () => { const w = window as unknown as { sendCount: number }; w.sendCount++; };
+    old.replaceWith(fresh);
+  }, nativeSelector);
+  await expect(page.locator(nativeSelector)).toHaveAttribute("aria-label", "Transcribe and send");
+  await page.locator(nativeSelector).tap();
+  await idle(page);
+  expect(await page.evaluate("window.sendCount")).toBe(1);
+});
+
+test("an agent Stop action appearing mid-recording is never intercepted", async ({ page, request }) => {
+  await page.goto("/project/session");
+  await record(page);
+  await page.locator(nativeSelector).evaluate((button) => button.setAttribute("data-icon", "stop"));
+  await expect(page.getByRole("button", { name: "Transcribe and send", exact: true })).toHaveCount(0);
+  await page.locator(nativeSelector).tap();
+  expect(await page.evaluate("window.sendCount")).toBe(1); // Original native handler.
+  expect((await (await request.get("/__test/state")).json()).calls).toBe(0);
+  await page.getByRole("button", { name: "Cancel dictation", exact: true }).tap();
+});
+
+test("form submission and repeated clicks cannot send a draft before transcription", async ({ page, request }) => {
+  await request.post("/__test/delay");
+  await page.goto("/project/session");
+  await page.evaluate((selector) => {
+    document.querySelector<HTMLButtonElement>(selector)!.type = "submit";
+    document.querySelector("form")!.addEventListener("submit", (event) => event.preventDefault());
+  }, nativeSelector);
+  await record(page);
+  await page.evaluate((selector) => {
+    const button = document.querySelector<HTMLButtonElement>(selector)!;
+    button.form!.requestSubmit(button);
+    button.click();
+    button.form!.requestSubmit(button);
+  }, nativeSelector);
+  expect(await page.evaluate("window.sendCount")).toBe(0);
+  await idle(page);
+  expect(await page.evaluate("window.sendCount")).toBe(1);
+  expect((await (await request.get("/__test/state")).json()).calls).toBe(1);
+});
+
+test("Enter in the editor transcribes instead of submitting the untranscribed draft", async ({ page, request }) => {
+  await request.post("/__test/delay");
+  await page.goto("/project/session");
+  await page.evaluate((selector) => {
+    document.querySelector(selector)!.addEventListener("keydown", (event) => {
+      if ((event as KeyboardEvent).key === "Enter") {
+        const w = window as unknown as { sendCount: number }; w.sendCount++;
+      }
+    });
+  }, editorSelector);
+  await record(page);
+  await page.locator(editorSelector).focus();
+  await page.keyboard.press("Enter");
+  expect(await page.evaluate("window.sendCount")).toBe(0);
+  await idle(page);
+  expect(await page.evaluate("window.sendCount")).toBe(1);
+});
+
+test("pagehide releases the temporary button override", async ({ page }) => {
+  await page.goto("/project/session");
+  await reactiveComposer(page);
+  await record(page);
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+  await idle(page);
+  await expect(page.locator(nativeSelector)).toBeDisabled();
+  expect(await page.locator(nativeSelector).getAttribute("data-ocvd-native-phase")).toBeNull();
+  expect(await page.locator(nativeSelector).evaluate((button) => Object.hasOwn(button, "disabled"))).toBe(false);
 });

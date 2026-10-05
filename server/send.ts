@@ -1,11 +1,12 @@
-import { type InputTarget, isCurrentTarget, submitPrompt } from "../src/insert";
+import { type InputTarget, isCurrentTarget } from "../src/insert";
+import { activateNativeSend } from "./native-submit";
 
 export function draftSnapshot(target: InputTarget): string {
   return target.editor instanceof HTMLTextAreaElement ? target.editor.value : target.editor.innerHTML;
 }
 
 // Wait briefly for OpenCode to consume the input event and enable its own Send button.
-// Never force-enable it, call the session API directly, or queue a send behind a running agent.
+// Never force-enable message submission or queue a send behind a running agent.
 export async function sendDraft(target: InputTarget, signal: AbortSignal): Promise<"sent" | "cancelled" | "changed" | "unavailable"> {
   const text = target.editor.textContent;
   let edited = false;
@@ -29,7 +30,7 @@ export async function sendDraft(target: InputTarget, signal: AbortSignal): Promi
         button?.querySelector('svg[data-slot="icon-svg"] use[href="#opencode-v2-icon-arrow-up"]');
       // Unknown/shell/Stop actions are not a reason to keep retrying.
       if (!button || !isSend || !button.getClientRects().length) return "unavailable";
-      if (!button.matches(":disabled") && submitPrompt(target)) return "sent";
+      if (!button.matches(":disabled") && activateNativeSend(target)) return "sent";
     } while (performance.now() < deadline);
     return "unavailable";
   } finally {
