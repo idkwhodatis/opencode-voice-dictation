@@ -17,7 +17,7 @@
 | 方式 | 适合场景 | 工作方式 |
 | --- | --- | --- |
 | **A. Tampermonkey 用户脚本** | 桌面浏览器，以及支持 userscript/扩展的浏览器 | 在浏览器端注入麦克风 UI。STT 设置和 API key 保存在 userscript storage 中。**[安装用户脚本](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
-| **B. 服务端注入（Caddy + Bun + SQLite）** | **原生 Android Chrome**，或通过反向代理访问的自托管 OpenCode | Caddy/Bun 把语音 UI 注入 OpenCode。API key 只保留在服务端本地文件中，模型/语言/prompt 等设置持久化到 SQLite。**[服务端部署说明](server/README.md)** |
+| **B. 服务端注入（Caddy + Bun + SQLite）** | **任何设备上的现代浏览器**，尤其适合不能安装 userscript/扩展的环境 | Caddy/Bun 把语音 UI 注入 OpenCode。API key 只保留在服务端本地文件中，模型/语言/prompt 等设置持久化到 SQLite。**[服务端部署说明](server/README.md)** |
 
 **同一个 OpenCode origin 请只启用一种方式。** 不建议同时启用 Tampermonkey 和服务端注入。
 
@@ -29,7 +29,7 @@
 | 🌍 语言 | 可指定语言，例如 `zh`、`en`、`ru`，或留空自动识别 |
 | ⚡ 自动发送 | 转写完成后可自动发送给 agent；默认关闭 |
 | 🧠 Whisper / Groq | 支持 `whisper-large-v3` / `whisper-large-v3-turbo` |
-| 📱 移动端 | userscript 方案用于支持 userscript 的浏览器；服务端注入可直接用于原生 Android Chrome |
+| 🌐 浏览器兼容性 | userscript 方案要求浏览器支持 userscript；服务端注入可用于任何支持标准麦克风/媒体 API 的现代浏览器和设备 |
 | ✅ OpenCode V2 | 兼容当前 stable 和重命名后的 beta composer DOM |
 | 🔄 自动更新 | Tampermonkey 版本通过 `@updateURL` 自动更新 |
 | ⌨️ Ctrl+Space | 桌面端可用快捷键开始/停止录音 |
@@ -73,7 +73,7 @@ Whisper 在静音或噪声下可能产生幻觉。**Set Temperature** 默认值�
 
 ## 🖥️ 方式 B — 服务端注入（Caddy + Bun + SQLite）
 
-如果你的 OpenCode 是自托管的，并且通过 Caddy 反向代理访问，尤其是你希望在 **原生 Android Chrome** 中使用语音输入，推荐这一方式。
+如果你的 OpenCode 是自托管的，并且通过 Caddy 反向代理访问，同时希望语音输入能在**各种现代浏览器和设备上直接工作，而不需要客户端安装 userscript 或扩展**，推荐这一方式。
 
 服务端版本会：
 
