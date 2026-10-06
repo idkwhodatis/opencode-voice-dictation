@@ -46,7 +46,7 @@
 
 Этот вариант предназначен для self-hosted OpenCode за Caddy и работает **в современных браузерах на любых устройствах без установки userscript или расширения**.
 
-Bun-сервис держит API-ключ только на сервере, Caddy/Bun добавляет голосовой интерфейс в OpenCode, а модель, язык, prompt, temperature и auto-submit сохраняются в SQLite. Полная инструкция: **[server/README.md](server/README.md)**.
+Bun-сервис хранит API-ключ в SQLite в зашифрованном виде с отдельным файлом мастер-ключа; веб-настройки поддерживают Groq и совместимый пользовательский endpoint. Caddy/Bun добавляет голосовой интерфейс в OpenCode, а модель, язык, prompt, temperature и auto-submit сохраняются в SQLite. Полная инструкция: **[server/README.md](server/README.md)**.
 
 Не включайте одновременно серверную инъекцию и Tampermonkey-скрипт для одного и того же origin.
 

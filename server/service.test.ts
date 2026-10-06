@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { createService, readLimitedBody, type ServiceOptions } from "./service";
 import { DEFAULT_SETTINGS, openSettings, validatePatch } from "./settings";
+import { openProviderStore } from "./provider";
 import { buildBrowser } from "./main";
 
 const TOKEN = "a".repeat(64);
@@ -282,4 +283,59 @@ test("browser bundle builds without GM APIs, SQLite, or a provider API key", asy
   const text = await (await buildBrowser()).text();
   expect(text.length).toBeGreaterThan(1000);
   for (const forbidden of ["GM_xmlhttpRequest", "GM_getValue", "bun:sqlite", "api.groq.com", KEY, TOKEN]) expect(text).not.toContain(forbidden);
+});
+
+
+describe("write-only provider settings", () => {
+  function providerFixture() {
+    const dir = mkdtempSync(join(tmpdir(), "ocvd-provider-http-"));
+    const provider = openProviderStore(join(dir, "settings.sqlite"), join(dir, "keys/master.key"));
+    cleanup.push(() => { provider.close(); rmSync(dir, { recursive: true, force: true }); });
+    let destination = "";
+    let authorization = "";
+    const { handler } = fixture({ provider, fetcher: mockFetch(async (input, init) => {
+      destination = String(input); authorization = new Headers(init?.headers).get("Authorization") ?? "";
+      expect(init?.redirect).toBe("error");
+      return Response.json({ text: "safe transcript" });
+    }) });
+    return { handler, provider, sent: () => ({ destination, authorization }) };
+  }
+  const update = (body: unknown, headers: Record<string, string> = {}) => request("/voice/provider", {
+    method: "PUT", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body),
+  });
+  test("auth, origin, CSRF marker, method and content type guard credential updates", async () => {
+    const { handler, provider } = providerFixture();
+    const value = { provider: "groq", apiKey: KEY };
+    for (const [headers, expected] of [
+      [{ "X-OCVD-Proxy-Token": "" }, 401], [{ Origin: "https://evil.test" }, 403],
+      [{ "sec-fetch-site": "same-site" }, 403], [{ "X-OCVD-Request": "" }, 403],
+      [{ "Content-Type": "text/plain" }, 415],
+    ] as [Record<string, string>, number][]) expect((await handler(update(value, headers))).status).toBe(expected);
+    expect((await handler(request("/voice/provider", { method: "POST" }))).status).toBe(405);
+    expect((await provider.getStatus()).apiKeyConfigured).toBe(false);
+  });
+  test("key is write-only and target changes never reuse the old credential", async () => {
+    const { handler, sent } = providerFixture();
+    expect((await handler(update({ provider: "groq", apiKey: KEY }))).status).toBe(200);
+    for (const path of ["/voice/config", "/voice/provider"]) {
+      const response = await handler(request(path));
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.text()).not.toContain(KEY);
+    }
+    expect((await handler(update({ provider: "custom", endpoint: "https://custom.example.test/stt" }))).status).toBe(400);
+    await handler(recording());
+    expect(sent()).toEqual({ destination: "https://api.groq.com/openai/v1/audio/transcriptions", authorization: `Bearer ${KEY}` });
+    expect((await handler(update({ provider: "custom", endpoint: "https://custom.example.test/stt", apiKey: "dummy-custom-key" }))).status).toBe(200);
+    await handler(recording());
+    expect(sent()).toEqual({ destination: "https://custom.example.test/stt", authorization: "Bearer dummy-custom-key" });
+    expect((await handler(update({ provider: "custom", endpoint: "https://custom.example.test/stt", apiKey: null }))).status).toBe(200);
+    expect((await handler(recording())).status).toBe(503);
+  });
+  test("malformed and oversized credential updates are bounded and do not echo secrets", async () => {
+    const { handler } = providerFixture();
+    const result = await handler(update({ provider: "custom", endpoint: `https://user:${KEY}@example.test/stt`, apiKey: KEY }));
+    expect(result.status).toBe(400); expect(await result.text()).not.toContain(KEY);
+    expect((await handler(update({ provider: "groq", apiKey: "a".repeat(17000) }))).status).toBe(413);
+    expect((await handler(new Request(`${ORIGIN}/voice/provider`, { method: "GET" }))).status).toBe(401);
+  });
 });

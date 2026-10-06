@@ -17,7 +17,7 @@
 | 方式 | 适合场景 | 工作方式 |
 | --- | --- | --- |
 | **A. Tampermonkey 用户脚本** | 桌面浏览器，以及支持 userscript/扩展的浏览器 | 在浏览器端注入麦克风 UI。STT 设置和 API key 保存在 userscript storage 中。**[安装用户脚本](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
-| **B. 服务端注入（Caddy + Bun + SQLite）** | **任何设备上的现代浏览器**，尤其适合不能安装 userscript/扩展的环境 | Caddy/Bun 把语音 UI 注入 OpenCode。API key 只保留在服务端本地文件中，模型/语言/prompt 等设置持久化到 SQLite。**[服务端部署说明](server/README.md)** |
+| **B. 服务端注入（Caddy + Bun + SQLite）** | **任何设备上的现代浏览器**，尤其适合不能安装 userscript/扩展的环境 | Caddy/Bun 把语音 UI 注入 OpenCode。API key 加密保存在 SQLite 中，主密钥使用独立的私有文件；可在设置网页配置 Groq 或自定义兼容接口。**[服务端部署说明](server/README.md)** |
 
 **同一个 OpenCode origin 请只启用一种方式。** 不建议同时启用 Tampermonkey 和服务端注入。
 
@@ -79,12 +79,12 @@ Whisper 在静音或噪声下可能产生幻觉。**Set Temperature** 默认值�
 
 - 不 fork OpenCode，直接在反向代理链路中注入语音 UI；
 - 在服务器上运行一个很小的 **Bun** 服务；
-- 从服务器本地私有文件读取 STT provider API key，浏览器永远拿不到 key；
+- 在 SQLite 中加密保存 STT API key，使用独立主密钥文件；设置网页只接受写入，不返回已保存的 key；
 - 使用 **SQLite** 保存模型、语言、Whisper Prompt、Temperature 和 Auto-Submit；
 - 提供同源 `/voice/` 设置页面和 REST API；
 - OpenCode 的 streaming/WebSocket 等主要流量仍然直接走 OpenCode，不经过语音服务。
 
-完整部署说明请看 **[server/README.md](server/README.md)**。里面包含 Caddy 路由配置、Bun/systemd 服务、API key 本地文件、SQLite 持久化、REST API、限流、超时和安全设计。
+完整部署说明请看 **[server/README.md](server/README.md)**。里面包含 Caddy 路由配置、Bun/systemd 服务、API key 加密存储、SQLite 持久化、REST API、限流、超时和安全设计。
 
 > 如果这个 origin 之前已经启用了 Tampermonkey 版本，请先禁用对应 userscript。
 

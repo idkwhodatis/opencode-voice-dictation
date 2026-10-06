@@ -1,6 +1,6 @@
 # Server-injected edition: Caddy + Bun
 
-Voice input in **any modern browser on any device**, without an extension, Tampermonkey, or an OpenCode fork. The existing userscript and its committed `dist/` remain unchanged. This is a separate distribution, version 0.3.0.
+Voice input in **any modern browser on any device**, without an extension, Tampermonkey, or an OpenCode fork. The existing userscript and its committed `dist/` remain unchanged. This is a separate distribution, version 0.4.0.
 
 ## Two ways to finish a recording
 
@@ -10,7 +10,7 @@ Move the cursor or select ordinary text before or during recording; Stop/Send fr
 
 Stop, Ctrl+Space, and the recording-duration limit always leave a draft for review. Direct send is an explicit choice for that recording only; an old `autoSubmit: true` setting cannot override Stop. If Send is unavailable or you change the draft, the text stays for manual review. See [recording actions, safety behavior, and upgrade notes](VOICE_ACTIONS.md).
 
-Bun serves the injected browser bundle, proxies transcription requests, reads the provider key from a private local file, and persists non-secret settings using built-in `bun:sqlite`. There are **no runtime npm dependencies and no Node server**. Keep the full repository checkout: the browser build reuses the existing `src/audio.ts`, `src/insert.ts`, `src/ui.ts`, and keyboard code. The injected edition adds cursor tracking in `server/caret.ts`; the userscript's append-only behavior is unchanged.
+Bun serves the injected browser bundle, proxies transcription requests, stores the provider key with authenticated AES-256-GCM encryption in built-in `bun:sqlite`, and persists transcription preferences there too. There are **no runtime npm dependencies and no Node server**. Keep the full repository checkout: the browser build reuses the existing `src/audio.ts`, `src/insert.ts`, `src/ui.ts`, and keyboard code. The injected edition adds cursor tracking in `server/caret.ts`; the userscript's append-only behavior is unchanged.
 
 ## Traffic layout
 
@@ -43,32 +43,32 @@ cp server/.env.example ~/.config/opencode-voice/voice.env
 chmod 600 ~/.config/opencode-voice/voice.env
 ```
 
-Create `~/.config/opencode-voice/groq.key` with just your API key, then set its permissions to `600`. For example, using Bash without placing the key in shell history:
+After the service is running, open the authenticated **/voice/** settings page. Choose **Groq** or **Custom**, enter the API key, and save. Custom accepts a full OpenAI-compatible multipart transcription endpoint and the existing model ID field accepts custom model names. The page shows configured/not-configured status; it never retrieves or displays the saved key. Changes take effect on the next transcription without restarting. The entry field is cleared after save or cancellation.
 
-```bash
-umask 077
-read -r -s -p 'Groq API key: ' GROQ_KEY
-printf '\n'
-printf '%s' "$GROQ_KEY" > ~/.config/opencode-voice/groq.key
-unset GROQ_KEY
-chmod 600 ~/.config/opencode-voice/groq.key
-```
+The service generates a random master encryption key on the first credential save, in a separate private file. No provider key is required in an environment variable or plaintext file for new installations.
 
 Edit `voice.env`. In particular:
 
 | Variable | Meaning |
 | --- | --- |
 | `VOICE_PUBLIC_ORIGIN` | The exact external origin, e.g. `https://opencode.example.com`, with no trailing slash or path. |
-| `GROQ_API_KEY_FILE` | Absolute path to the key file. The file is reread for each request, so key rotation needs no restart. |
+| `VOICE_ENCRYPTION_KEY_FILE` | Separate master-key file; defaults to `~/.config/opencode-voice/encryption.key`. Created with mode `0600` on first save. Keep it outside the SQLite directory/backups when possible. |
+| `GROQ_API_KEY_FILE` | Optional legacy plaintext-key file, read per request only until the first explicit provider save. New installations do not need it. |
 | `VOICE_PROXY_TOKEN` | A random token shared by Caddy and Bun. Generate with `openssl rand -hex 32`. Do not use the example placeholder. |
 | `VOICE_DB_PATH` | SQLite settings file; defaults to `~/.local/state/opencode-voice/settings.sqlite`. |
 | `VOICE_HOST` | Bind address; defaults to `127.0.0.1`. Set `0.0.0.0` when the reverse proxy runs in a container and reaches the host through a LAN address. The proxy token remains required. |
 | `OPENCODE_UPSTREAM` | Your OpenCode server origin; defaults to `http://127.0.0.1:4096`. |
-| `VOICE_STT_ENDPOINT` | Full transcription endpoint; defaults to Groq. HTTPS is required except for an explicitly configured loopback HTTP provider. |
+| `VOICE_STT_ENDPOINT` | Optional legacy fallback endpoint used only with `GROQ_API_KEY_FILE`, before the first provider save. |
 
 `VOICE_PROXY_TOKEN_FILE` can replace `VOICE_PROXY_TOKEN` for Bun, including a systemd credential path. Caddy still needs the same raw token in its own environment. The provider API key is **not** this proxy token.
 
-Groq is the default, but another compatible multipart transcription endpoint can be configured on the server. Endpoint changes require a service restart. Provider redirects are not followed with the key. The REST API intentionally cannot change the endpoint, credential path, or key: otherwise an authenticated browser could redirect the secret to another host.
+Groq is the default. **Custom** accepts a full compatible transcription URL, not a base URL or a provider-specific adapter. HTTPS is recommended. HTTP is accepted only for literal loopback or private LAN IPs, for self-hosted providers; the settings page warns that both recordings and credentials travel unencrypted on that connection. URL credentials, queries, and fragments are rejected. Redirects are never followed with the API key. Changing the selected provider or endpoint requires explicitly entering a key; the previous key is never silently forwarded to a new destination. Saving credentials does not verify provider connectivity or quota.
+
+All settings are shared by this server instance. Anyone authorized by your Caddy authentication can change the provider and use its key. Keep Caddy authentication enabled and prevent direct unauthenticated access to Bun. The injected proxy token, origin checks, and same-origin request marker protect credential updates as they protect transcription.
+
+### Existing installations
+
+Existing `GROQ_API_KEY_FILE` and `VOICE_STT_ENDPOINT` continue working as a read-only fallback until you explicitly save provider credentials in the page. No key is silently imported or deleted. After saving, the encrypted record takes precedence, including across restarts. Removing the saved key disables transcription and **does not reactivate the legacy file**. Once you have tested the new configuration, remove the old environment settings and securely manage/delete the old plaintext file yourself. Its historical backups are not rewritten by this update.
 
 ## 2. Start the user service
 
@@ -141,20 +141,26 @@ curl -fsS http://127.0.0.1:4097/voice/transcribe \
   --data-binary @recording.webm
 ```
 
-`GET /voice/config` returns `{settings, apiKeyConfigured, maxAudioBytes, maxRecordingSeconds}`. `PATCH /voice/config` accepts only `model`, `language`, `whisperPrompt`, `temperature`, and the legacy `autoSubmit` field. `POST /voice/transcribe` retains `{text, autoSubmit}` for backward compatibility. **The injected browser client ignores `autoSubmit`; delivery is chosen with the recording buttons.** No database migration is required. The model is a validated ID, not a hard-coded two-model whitelist, to support compatible providers. Empty language means automatic detection. Unknown fields and invalid types are rejected atomically; settings are shared across devices, not per-user. Concurrent writes to the same field are last-writer-wins.
+`GET /voice/config` returns `{settings, apiKeyConfigured, maxAudioBytes, maxRecordingSeconds}`. `PATCH /voice/config` accepts only `model`, `language`, `whisperPrompt`, `temperature`, and the legacy `autoSubmit` field. `POST /voice/transcribe` retains `{text, autoSubmit}` for backward compatibility. **The injected browser client ignores `autoSubmit`; delivery is chosen with the recording buttons.** Existing preference values are preserved. The model is a validated ID, not a hard-coded two-model whitelist, to support compatible providers. Empty language means automatic detection. Unknown fields and invalid types are rejected atomically; settings are shared across devices, not per-user. Concurrent writes to the same field are last-writer-wins.
 
 ## Limits and storage
 
 Defaults: 20 MiB per recording, a 300-second **browser recording limit**, two in-flight transcriptions, ten transcription attempts per minute across the installation, a 30-second upload deadline, and a 60-second provider timeout. These are adjustable via `voice.env`; provider limits still apply. The duration cap is a browser UX limit, not server-side audio-duration inspection. Byte/concurrency/rate limits are enforced by the backend. In-memory rate counters reset on restart.
 
-API keys stay in the private file; SQLite stores **only non-secret settings**. The service sets a restrictive umask and creates the database with `0600` permissions. Protect the containing directory and SQLite WAL/SHM files as well. Recordings and transcripts are not persisted or logged by this service, but are sent to the configured speech provider; that provider's retention policy still applies. Back up SQLite using a consistent database backup or stop the service first.
+SQLite stores provider metadata and an AES-256-GCM encrypted key, with a fresh random nonce on each key write and the provider/endpoint bound as authenticated data. `GET /voice/provider` returns only status and non-secret provider metadata; authenticated `PUT /voice/provider` explicitly changes the provider/key. Omit `apiKey` to preserve a key for an unchanged target; `apiKey: null` removes it. Unknown fields are rejected. General preference reads/exports do not include ciphertext or keys.
+
+The master encryption key is a separate private `0600` file, not a value inside SQLite. Encryption protects a database-only leak; an attacker who obtains both files or controls the running server can decrypt the credential. The plaintext API key exists transiently in the browser while you enter it, in HTTPS transit, and in server memory when used for authentication; it is not returned to the browser or written to plaintext storage by the new flow. JavaScript, operating-system swap and crash dumps do not provide a guarantee of perfect memory zeroization. Avoid request-body/header logging at your proxy or debugging layers.
+
+Back up the database consistently and back up the master key separately with restricted access. Restoring SQLite without its matching master key cannot recover the stored API key. Missing, malformed, inaccessible, or wrong keys and corrupt ciphertext fail closed; the service does not silently fall back to a legacy credential. Restore the matching key from a trusted backup. If recovery is impossible, explicitly **Remove key** before adding a replacement; this abandons the old encrypted credential. A missing master key may then be generated again, but an insecure or malformed existing key file must first be repaired by the server owner. Credential rotation uses **Change key**; replacing the master-key file is not a supported rotation mechanism and makes existing ciphertext unreadable. Keep the matching master key until all backups encrypted with it are retired. Removing a credential deletes the active encrypted value but cannot erase historical database/WAL/backups; revoke an old provider key when needed.
+
+The service sets a restrictive umask and creates the database with `0600` permissions. Protect the containing directory and SQLite WAL/SHM files as well. Recordings and transcripts are not persisted or logged by this service, but are sent to the configured speech provider; that provider's retention policy still applies. Back up SQLite using a consistent database backup or stop the service first.
 
 ## Development and verification
 
 ```sh
 # Native Bun service/SQLite/security tests; no dependency installation needed.
 cd server
-bun test service.test.ts
+bun test service.test.ts provider.test.ts
 
 # Optional development-only type definitions and TypeScript checker.
 bun install

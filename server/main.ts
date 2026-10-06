@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { openProviderStore, GROQ_ENDPOINT, type ProviderStore } from "./provider";
 import { openSettings } from "./settings";
 import { createService } from "./service";
 
@@ -34,8 +35,7 @@ export async function startServer() {
     throw new Error("Use HTTPS for the public origin. HTTP is only allowed on loopback for development.");
   }
   const keyPath = Bun.env.GROQ_API_KEY_FILE;
-  if (!keyPath) throw new Error("Set GROQ_API_KEY_FILE to a private local API-key file.");
-  const absoluteKeyPath = resolve(keyPath);
+  const absoluteKeyPath = keyPath ? resolve(keyPath) : undefined;
   const tokenFile = Bun.env.VOICE_PROXY_TOKEN_FILE;
   const proxyToken = (tokenFile ? await Bun.file(tokenFile).text() : Bun.env.VOICE_PROXY_TOKEN ?? "").trim();
   if (proxyToken.length < 32 || proxyToken.startsWith("REPLACE_")) throw new Error("Set VOICE_PROXY_TOKEN or VOICE_PROXY_TOKEN_FILE (at least 32 characters).");
@@ -54,13 +54,16 @@ export async function startServer() {
   ]);
   const settings = openSettings(statePath);
   chmodSync(statePath, 0o600);
+  const encryptionKeyPath = resolve(Bun.env.VOICE_ENCRYPTION_KEY_FILE ?? join(homedir(), ".config/opencode-voice/encryption.key"));
+  let provider: ProviderStore | undefined;
   try {
-    const handler = createService({
-      origin, proxyToken, settings, assets,
-      upstream: Bun.env.OPENCODE_UPSTREAM ?? "http://127.0.0.1:4096",
-      endpoint: Bun.env.VOICE_STT_ENDPOINT ?? "https://api.groq.com/openai/v1/audio/transcriptions",
-      // Read per request so rotating the file doesn't require a service restart.
+    provider = openProviderStore(statePath, encryptionKeyPath, absoluteKeyPath ? {
+      endpoint: Bun.env.VOICE_STT_ENDPOINT ?? GROQ_ENDPOINT,
       getApiKey: () => Bun.file(absoluteKeyPath).text(),
+    } : undefined);
+    const handler = createService({
+      origin, proxyToken, settings, assets, provider,
+      upstream: Bun.env.OPENCODE_UPSTREAM ?? "http://127.0.0.1:4096",
       maxAudioBytes,
       maxRecordingSeconds: integer("VOICE_MAX_RECORDING_SECONDS", 300, 1, 3600),
       timeoutMs: integer("VOICE_TIMEOUT_SECONDS", 60, 1, 300) * 1000,
@@ -75,8 +78,8 @@ export async function startServer() {
       error: () => Response.json({ error: "Voice service request failed." }, { status: 500 }),
     });
     console.info(`OpenCode voice listening on http://${hostname}:${server.port}`);
-    return { server, async stop() { await server.stop(); settings.close(); } };
-  } catch (error) { settings.close(); throw error; }
+    return { server, async stop() { await server.stop(); provider?.close(); settings.close(); } };
+  } catch (error) { provider?.close(); settings.close(); throw error; }
 }
 
 if (import.meta.main) {

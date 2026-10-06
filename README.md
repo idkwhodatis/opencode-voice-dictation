@@ -5,7 +5,7 @@ Voice input for OpenCode WebUI is available through **two supported installation
 | Path | Best for | How it works |
 | --- | --- | --- |
 | **A. Tampermonkey userscript** | Desktop browsers and browsers that support userscripts/extensions | Injects the mic controls in the browser. Your STT settings/API key live in userscript storage. **[Install the userscript](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
-| **B. Server-side injection (Caddy + Bun + SQLite)** | **Any modern browser on any device**, especially when userscripts/extensions are unavailable | Caddy/Bun injects the same voice UI into OpenCode. The provider API key stays in a private server-side file; model/language/prompt settings are persisted in SQLite. **[Server deployment guide](server/README.md)** |
+| **B. Server-side injection (Caddy + Bun + SQLite)** | **Any modern browser on any device**, especially when userscripts/extensions are unavailable | Caddy/Bun injects the same voice UI into OpenCode. The provider API key is encrypted in SQLite with a separate private master key; provider/model/language settings are managed in the web page. **[Server deployment guide](server/README.md)** |
 
 **Choose one path for a given OpenCode origin.** Do not intentionally run both at the same time.
 
@@ -66,7 +66,7 @@ The server edition:
 
 - injects the voice UI into OpenCode without forking OpenCode;
 - runs a small **Bun** service on the server;
-- keeps the speech-provider API key in a private local file instead of sending it to the browser;
+- stores the speech-provider API key encrypted in SQLite, with a separate private master key and write-only web settings;
 - persists model, language, Whisper prompt, temperature, and auto-submit settings in **SQLite**;
 - exposes a same-origin `/voice/` settings page and REST API;
 - keeps OpenCode streaming/WebSocket traffic going directly to OpenCode.

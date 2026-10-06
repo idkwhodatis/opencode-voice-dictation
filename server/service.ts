@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { SettingsStore } from "./settings";
+import type { ProviderStore } from "./provider";
 
 export const PREFIX = "/voice";
 const SCRIPT = '<script id="ocvd-server-script" src="/voice/voice.js" defer></script>';
@@ -17,8 +18,9 @@ export interface ServiceOptions {
   origin: string;
   proxyToken: string;
   upstream: string;
-  endpoint: string;
-  getApiKey: () => Promise<string>;
+  endpoint?: string;
+  getApiKey?: () => Promise<string>;
+  provider?: ProviderStore;
   settings: SettingsStore;
   assets: Map<string, { body: string | Blob; type: string }>;
   maxAudioBytes?: number;
@@ -101,7 +103,7 @@ export function createService(options: ServiceOptions) {
   const upstream = new URL(options.upstream);
   if (!['http:', 'https:'].includes(upstream.protocol) || upstream.username || upstream.password ||
     upstream.pathname !== "/" || upstream.search || upstream.hash) throw new Error("Invalid upstream origin.");
-  const endpoint = new URL(options.endpoint);
+  const endpoint = new URL(options.endpoint ?? "https://api.groq.com/openai/v1/audio/transcriptions");
   const localEndpoint = ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
   if (endpoint.username || endpoint.password || endpoint.hash ||
     (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && localEndpoint))) {
@@ -114,16 +116,18 @@ export function createService(options: ServiceOptions) {
   let active = 0;
   let starts: number[] = [];
 
-  async function key(): Promise<string> {
+  async function credentials(): Promise<{endpoint: string; apiKey: string}> {
     try {
-      const value = (await options.getApiKey()).trim();
+      const selected = options.provider ? await options.provider.getCredentials() : { endpoint: endpoint.href, apiKey: await options.getApiKey?.() ?? "" };
+      const value = selected.apiKey.trim();
       if (!value || value.length > 8192 || /[\r\n\0]/.test(value)) throw new Error();
-      return value;
-    } catch { throw new HttpError(503, "Server API key is missing or unreadable. Check the service's key file."); }
+      return { endpoint: selected.endpoint, apiKey: value };
+    } catch { throw new HttpError(503, "Server API key is missing or unreadable. Check Voice settings and the server encryption key."); }
   }
   async function config(): Promise<Response> {
     let apiKeyConfigured = true;
-    try { await key(); } catch { apiKeyConfigured = false; }
+    if (options.provider) apiKeyConfigured = (await options.provider.getStatus()).apiKeyConfigured;
+    else try { await credentials(); } catch { apiKeyConfigured = false; }
     return json({ settings: options.settings.get(), apiKeyConfigured, maxAudioBytes, maxRecordingSeconds });
   }
   function mutationGuard(req: Request): void {
@@ -144,7 +148,7 @@ export function createService(options: ServiceOptions) {
     active++;
     starts.push(now);
     try {
-      const apiKey = await key();
+      const { endpoint: selectedEndpoint, apiKey } = await credentials();
       const settings = options.settings.get();
       const uploadSignal = AbortSignal.any([req.signal, AbortSignal.timeout(30000)]);
       const audio = await readLimitedBody(req, maxAudioBytes, uploadSignal);
@@ -160,7 +164,7 @@ export function createService(options: ServiceOptions) {
       let response: Response;
       let result: unknown;
       try {
-        response = await fetcher(endpoint, {
+        response = await fetcher(selectedEndpoint, {
           method: "POST", headers: { Authorization: `Bearer ${apiKey}` },
           body: form, signal, redirect: "error",
         });
@@ -229,11 +233,28 @@ export function createService(options: ServiceOptions) {
       }
       const url = new URL(req.url);
       const path = url.pathname;
-      const isApi = [`${PREFIX}/config`, `${PREFIX}/transcribe`, `${PREFIX}/health`].includes(path);
+      const isApi = [`${PREFIX}/config`, `${PREFIX}/provider`, `${PREFIX}/transcribe`, `${PREFIX}/health`].includes(path);
       const requestOrigin = req.headers.get("origin");
       const site = req.headers.get("sec-fetch-site");
       if (isApi && ((requestOrigin !== null && requestOrigin !== origin) || site === "cross-site" || site === "same-site")) {
         throw new HttpError(403, "Cross-origin voice requests are not allowed.");
+      }
+      if (path === `${PREFIX}/provider`) {
+        if (!options.provider) throw new HttpError(503, "Provider settings are unavailable.");
+        if (req.method === "GET") return json(await options.provider.getStatus());
+        if (req.method !== "PUT") throw new HttpError(405, "Use GET or PUT for provider settings.");
+        mutationGuard(req);
+        if (!/^application\/json(?:\s*;|$)/i.test(req.headers.get("content-type") ?? "")) {
+          throw new HttpError(415, "Provider updates require application/json.");
+        }
+        const bytes = await readLimitedBody(req, 16384, AbortSignal.any([req.signal, AbortSignal.timeout(10000)]));
+        let value: unknown;
+        try { value = JSON.parse(new TextDecoder().decode(bytes)); }
+        catch { throw new HttpError(400, "Invalid JSON."); }
+        finally { bytes.fill(0); }
+        try { options.provider.save(value); }
+        catch { throw new HttpError(400, "Could not save provider settings. Check the endpoint, enter a key for a new target, and verify server key-file access."); }
+        return json(await options.provider.getStatus());
       }
       if (path === `${PREFIX}/config`) {
         if (req.method === "GET") return await config();

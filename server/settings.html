@@ -16,12 +16,51 @@
     <p><strong>Stop and review</strong> inserts an editable draft into OpenCode. Review, change, delete, or send it using OpenCode's normal controls.</p>
     <p><strong>Transcribe and send</strong> inserts the transcript and clicks OpenCode's Send button when ready. This sends the entire draft, including any text or attachments already in the composer.</p>
     <p>There is no global auto-send switch. Stopping with Ctrl+Space or reaching the recording time limit always leaves a draft for review. Question inputs are review-only.</p>
-    <p id="key-status">Checking server configuration…</p>
+    <section aria-labelledby="provider-heading">
+      <h2 id="provider-heading">Speech provider and API key</h2>
+      <p>Keys entered here are encrypted on your server. A saved key is never returned to this page.</p>
+      <form id="provider-settings" autocomplete="off">
+        <fieldset id="provider-fields" disabled>
+          <label for="provider">Provider</label>
+          <select id="provider" name="provider">
+            <option value="groq">Groq (default)</option>
+            <option value="custom">Custom (OpenAI-compatible)</option>
+          </select>
+          <div id="endpoint-fields" hidden>
+            <label for="endpoint">Full transcription endpoint</label>
+            <input id="endpoint" name="endpoint" type="url" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="https://speech.example.com/v1/audio/transcriptions" aria-describedby="endpoint-help custom-warning http-warning">
+            <small id="endpoint-help">Enter the complete audio transcription URL, including its path. HTTP is allowed only for literal private or loopback IP addresses.</small>
+            <p id="custom-warning" class="warning">Your recordings and API key will be sent to this server. Only use an endpoint you trust.</p>
+            <p id="http-warning" class="warning" hidden>HTTP sends recordings and your API key in plaintext on the network. Use it only on a trusted local network.</p>
+          </div>
+          <p id="key-status" role="status" aria-live="polite">Checking server configuration…</p>
+          <p id="target-warning" class="warning" hidden>Changing the provider or endpoint requires a newly entered key. The saved key will not be reused for another destination.</p>
+          <div class="actions">
+            <button id="edit-key" type="button" aria-controls="key-editor" aria-expanded="false">Add key</button>
+            <button id="remove-key" type="button" disabled>Remove key</button>
+          </div>
+          <div id="key-editor" hidden>
+            <label for="api-key">New API key</label>
+            <input id="api-key" name="apiKey" type="password" maxlength="4096" autocomplete="new-password" spellcheck="false" autocapitalize="none" aria-describedby="key-help">
+            <small id="key-help">Enter a new key, then select Save provider. No key is saved in browser storage.</small>
+            <button id="cancel-key" type="button">Cancel key change</button>
+          </div>
+          <div class="actions">
+            <button type="submit">Save provider</button>
+            <button id="cancel-provider" type="button">Cancel changes</button>
+          </div>
+        </fieldset>
+      </form>
+      <p id="provider-status" role="status" aria-live="polite"></p>
+      <button id="retry-provider" type="button" hidden>Retry provider settings</button>
+    </section>
+    <h2>Transcription preferences</h2>
     <form id="settings">
       <fieldset id="fields" disabled>
         <label for="model">Model</label>
-        <input id="model" name="model" list="models" required maxlength="128" autocomplete="off">
+        <input id="model" name="model" list="models" required maxlength="128" autocomplete="off" aria-describedby="model-help">
         <datalist id="models"><option value="whisper-large-v3-turbo"><option value="whisper-large-v3"></datalist>
+        <small id="model-help">Choose a Groq suggestion or type any model ID supported by your custom endpoint.</small>
         <label for="language">Language</label>
         <input id="language" name="language" placeholder="Automatic (or en, zh, …)" maxlength="3" pattern="[a-z]{2,3}|" autocomplete="off">
         <small>Leave empty for automatic language detection, including mixed-language input.</small>
@@ -33,7 +72,7 @@
       </fieldset>
     </form>
     <p id="status" role="status" aria-live="polite"></p>
-    <p class="note">Your API-key file and transcription endpoint are configured on the server, not through this page. Recordings are sent to your configured speech provider; this service does not save recordings or transcripts.</p>
+    <p class="note">Recordings are sent to your saved speech provider using the model above. This service does not save recordings or transcripts.</p>
   </main>
 </body>
 </html>

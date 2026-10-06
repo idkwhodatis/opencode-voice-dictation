@@ -32,7 +32,7 @@ jobs:
         working-directory: server
       - run: bun run typecheck
         working-directory: server
-      - run: bun test service.test.ts
+      - run: bun test service.test.ts provider.test.ts
         if: ${{ !cancelled() }}
         working-directory: server
       - run: npx playwright install --with-deps chromium
