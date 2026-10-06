@@ -28,7 +28,7 @@ async function mockProvider(page: Page, initial: Partial<ProviderMetadata> = {})
     reads: 0,
     failRead: false,
     failWrite: false,
-    delayWrite: false,
+    writeGate: null as Promise<void> | null,
   };
   await page.route("**/voice/provider", async (route) => {
     const request = route.request();
@@ -45,7 +45,7 @@ async function mockProvider(page: Page, initial: Partial<ProviderMetadata> = {})
     expect(request.method()).toBe("PUT");
     const data = request.postDataJSON() as ProviderUpdate;
     state.updates.push(data);
-    if (state.delayWrite) await new Promise((resolve) => setTimeout(resolve, 200));
+    if (state.writeGate) await state.writeGate;
     if (state.failWrite) {
       await route.fulfill({ status: 400, json: { error: `Rejected key: ${secret}` } });
       return;
@@ -62,8 +62,8 @@ async function mockProvider(page: Page, initial: Partial<ProviderMetadata> = {})
 }
 async function openSettings(page: Page) {
   await page.goto("/voice/");
-  await expect(page.locator("#provider-fields")).toBeEnabled();
-  await expect(page.locator("#fields")).toBeEnabled();
+  await expect(page.locator("#provider")).toBeEnabled();
+  await expect(page.locator("#model")).toBeEnabled();
 }
 async function enterKey(page: Page, value = secret) {
   await page.locator("#edit-key").click();
@@ -221,7 +221,7 @@ test("cancel, Escape, closing, and navigating clear the password without saving"
   await enterKey(page);
   await page.getByRole("link", { name: "← OpenCode" }).click();
   await page.goBack();
-  await expect(page.locator("#provider-fields")).toBeEnabled();
+  await expect(page.locator("#provider")).toBeEnabled();
   await expectNoBrowserKey(page);
   expect(fixture.updates).toHaveLength(0);
 });
@@ -235,13 +235,18 @@ test("write failures stay generic, allow retry, and suppress duplicate submits",
   await expect(page.locator("#provider-status")).toContainText("Could not save provider settings");
   expect(await page.locator("body").innerText()).not.toContain(secret);
   await expect(page.locator("#api-key")).toHaveValue(secret);
-  await expect(page.locator("#provider-fields")).toBeEnabled();
+  await expect(page.locator("#provider")).toBeEnabled();
   fixture.failWrite = false;
-  fixture.delayWrite = true;
+  let releaseWrite!: () => void;
+  fixture.writeGate = new Promise<void>((resolve) => { releaseWrite = resolve; });
   await page.locator("#provider-settings").evaluate((form) => {
     for (let i = 0; i < 3; i++) form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
-  await expect(page.locator("#provider-fields")).toBeDisabled();
+  try {
+    await expect.poll(() => fixture.updates.length).toBe(2);
+    await expect(page.locator("#provider")).toBeDisabled();
+    await expect(page.locator("#api-key")).toBeDisabled();
+  } finally { releaseWrite(); }
   await expect(page.locator("#provider-status")).toHaveText("Provider settings saved.");
   expect(fixture.updates).toHaveLength(2);
   await expectNoBrowserKey(page);
@@ -252,12 +257,12 @@ test("read failure is retryable without disabling transcription preferences", as
   fixture.failRead = true;
   await page.goto("/voice/");
   await expect(page.locator("#provider-status")).toContainText("Could not load provider settings");
-  await expect(page.locator("#provider-fields")).toBeDisabled();
-  await expect(page.locator("#fields")).toBeEnabled();
+  await expect(page.locator("#provider")).toBeDisabled();
+  await expect(page.locator("#model")).toBeEnabled();
   expect(await page.locator("body").innerText()).not.toContain(secret);
   fixture.failRead = false;
   await page.getByRole("button", { name: "Retry provider settings", exact: true }).click();
-  await expect(page.locator("#provider-fields")).toBeEnabled();
+  await expect(page.locator("#provider")).toBeEnabled();
   await expect(page.locator("#retry-provider")).toBeHidden();
   await expectNoBrowserKey(page);
 });
