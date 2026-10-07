@@ -1,0 +1,9 @@
+{
+  "publicOrigin": "https://opencode.example.com",
+  "host": "127.0.0.1",
+  "port": 4097,
+  "upstream": "http://127.0.0.1:4096",
+  "databasePath": "~/.local/state/opencode-voice/settings.sqlite",
+  "encryptionKeyFile": "~/.config/opencode-voice/encryption.key",
+  "proxyTokenFile": "~/.config/opencode-voice/proxy.token"
+}

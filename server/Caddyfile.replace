@@ -1,16 +1,16 @@
 # OPTIONAL: injection directly inside Caddy. Requires this nonstandard module:
 #   xcaddy build --with github.com/caddyserver/replace-response
 # The supplied stock Caddyfile is the preferred option when avoiding custom builds.
-{$VOICE_SITE} {
+opencode.example.com {
 	basic_auth {
-		opencode {$VOICE_AUTH_HASH}
+		opencode REPLACE_WITH_BCRYPT_HASH
 	}
 	handle /voice {
 		redir /voice/ 308
 	}
 	handle /voice/* {
 		reverse_proxy 127.0.0.1:4097 {
-			header_up X-OCVD-Proxy-Token {$VOICE_PROXY_TOKEN}
+			header_up X-OCVD-Proxy-Token {file./path/to/opencode-voice/proxy.token}
 		}
 	}
 	@documents {

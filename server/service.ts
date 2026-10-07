@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import type { SettingsStore } from "./settings";
+import type { SettingsStore, VoiceSettings } from "./settings";
 import type { ProviderStore } from "./provider";
 
 export const PREFIX = "/voice";
@@ -23,6 +23,8 @@ export interface ServiceOptions {
   provider?: ProviderStore;
   settings: SettingsStore;
   assets: Map<string, { body: string | Blob; type: string }>;
+  // Internal/test-only fixed overrides, useful for sub-MB and millisecond tests.
+  // Production omits these so the current SQLite limits are used for every request.
   maxAudioBytes?: number;
   maxRecordingSeconds?: number;
   timeoutMs?: number;
@@ -109,12 +111,19 @@ export function createService(options: ServiceOptions) {
     (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && localEndpoint))) {
     throw new Error("STT endpoint must use HTTPS, or HTTP on loopback, without credentials/fragments.");
   }
-  const maxAudioBytes = options.maxAudioBytes ?? 20 * 1024 * 1024;
-  const maxRecordingSeconds = options.maxRecordingSeconds ?? 300;
-  const timeoutMs = options.timeoutMs ?? 60000;
   const fetcher = options.fetcher ?? fetch;
   let active = 0;
   let starts: number[] = [];
+
+  function limits(settings: VoiceSettings) {
+    return {
+      maxAudioBytes: options.maxAudioBytes ?? settings.maxAudioMB * 1024 * 1024,
+      maxRecordingSeconds: options.maxRecordingSeconds ?? settings.maxRecordingSeconds,
+      timeoutMs: options.timeoutMs ?? settings.timeoutSeconds * 1000,
+      maxConcurrent: options.maxConcurrent ?? settings.maxConcurrent,
+      requestsPerMinute: options.requestsPerMinute ?? settings.requestsPerMinute,
+    };
+  }
 
   async function credentials(): Promise<{endpoint: string; apiKey: string}> {
     try {
@@ -128,7 +137,9 @@ export function createService(options: ServiceOptions) {
     let apiKeyConfigured = true;
     if (options.provider) apiKeyConfigured = (await options.provider.getStatus()).apiKeyConfigured;
     else try { await credentials(); } catch { apiKeyConfigured = false; }
-    return json({ settings: options.settings.get(), apiKeyConfigured, maxAudioBytes, maxRecordingSeconds });
+    const settings = options.settings.get();
+    const { maxAudioBytes, maxRecordingSeconds } = limits(settings);
+    return json({ settings, apiKeyConfigured, maxAudioBytes, maxRecordingSeconds });
   }
   function mutationGuard(req: Request): void {
     if (req.headers.get("X-OCVD-Request") !== "1") throw new HttpError(403, "Missing same-origin request marker.");
@@ -138,9 +149,13 @@ export function createService(options: ServiceOptions) {
     const mime = (req.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
     const extension = MIME_EXTENSIONS[mime];
     if (!extension) throw new HttpError(415, "Send an audio recording as the raw request body, with its audio Content-Type.");
+    // Snapshot once, before credentials/body/provider awaits. Live changes only
+    // affect new admissions and never alter or cancel an accepted recording.
+    const settings = options.settings.get();
+    const currentLimits = limits(settings);
     const now = Date.now();
     starts = starts.filter((time) => now - time < 60000);
-    if (active >= (options.maxConcurrent ?? 2) || starts.length >= (options.requestsPerMinute ?? 10)) {
+    if (active >= currentLimits.maxConcurrent || starts.length >= currentLimits.requestsPerMinute) {
       return new Response(JSON.stringify({ error: "Voice service is busy or rate limited. Try again shortly." }), {
         status: 429, headers: { "Content-Type": "application/json", "Retry-After": "60", "Cache-Control": "no-store" },
       });
@@ -149,9 +164,8 @@ export function createService(options: ServiceOptions) {
     starts.push(now);
     try {
       const { endpoint: selectedEndpoint, apiKey } = await credentials();
-      const settings = options.settings.get();
       const uploadSignal = AbortSignal.any([req.signal, AbortSignal.timeout(30000)]);
-      const audio = await readLimitedBody(req, maxAudioBytes, uploadSignal);
+      const audio = await readLimitedBody(req, currentLimits.maxAudioBytes, uploadSignal);
       if (!audio.length) throw new HttpError(400, "Recording is empty.");
       const form = new FormData();
       form.set("file", new Blob([audio.buffer as ArrayBuffer], { type: mime }), `recording.${extension}`);
@@ -160,7 +174,7 @@ export function createService(options: ServiceOptions) {
       form.set("response_format", "json");
       if (settings.language) form.set("language", settings.language);
       if (settings.whisperPrompt) form.set("prompt", settings.whisperPrompt);
-      const signal = AbortSignal.any([req.signal, AbortSignal.timeout(timeoutMs)]);
+      const signal = AbortSignal.any([req.signal, AbortSignal.timeout(currentLimits.timeoutMs)]);
       let response: Response;
       let result: unknown;
       try {

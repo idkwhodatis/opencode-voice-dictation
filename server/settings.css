@@ -17,6 +17,13 @@ small, .note { color: GrayText; }
 .warning { border-inline-start: 3px solid GrayText; padding-inline-start: 12px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .actions button { flex: 1 1 auto; margin-top: 8px; }
+.service-limits { border-top: 1px solid GrayText; margin-top: 24px; padding-top: 16px; }
+.service-limits h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
+.advanced-label { color: GrayText; font-size: 0.75em; font-weight: 400; }
+.limits-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.limits-grid > div { min-width: 0; }
+.limits-grid label { margin-top: 0; margin-bottom: 8px; }
+@media (max-width: 480px) { .limits-grid { grid-template-columns: minmax(0, 1fr); } }
 #key-editor { padding: 12px; border: 1px solid GrayText; border-radius: 8px; }
 #key-editor label { margin-top: 0; }
 #key-editor button { margin-top: 12px; }

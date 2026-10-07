@@ -9,5 +9,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["bun"]
   },
-  "include": ["provider.ts", "provider.test.ts", "main.ts", "service.ts", "settings.ts", "browser.ts", "service.test.ts", "browser-fixture.ts"]
+  "include": ["caddy-smoke.ts", "config.ts", "config.test.ts", "main.test.ts", "provider.ts", "provider.test.ts", "main.ts", "service.ts", "settings.ts", "browser.ts", "service.test.ts", "browser-fixture.ts"]
 }

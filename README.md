@@ -5,7 +5,7 @@ Voice input for OpenCode WebUI is available through **two supported installation
 | Path | Best for | How it works |
 | --- | --- | --- |
 | **A. Tampermonkey userscript** | Desktop browsers and browsers that support userscripts/extensions | Injects the mic controls in the browser. Your STT settings/API key live in userscript storage. **[Install the userscript](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
-| **B. Server-side injection (Caddy + Bun + SQLite)** | **Any modern browser on any device**, especially when userscripts/extensions are unavailable | Caddy/Bun injects the same voice UI into OpenCode. The provider API key is encrypted in SQLite with a separate private master key; provider/model/language settings are managed in the web page. **[Server deployment guide](server/README.md)** |
+| **B. Server-side injection (Caddy + Bun + SQLite)** | **Any modern browser on any device**, especially when userscripts/extensions are unavailable | Caddy/Bun injects the same voice UI into OpenCode. The provider API key is encrypted in SQLite with a separate private master key; provider/model/language and service limits are managed in the web page; startup uses a JSON file. **[Server deployment guide](server/README.md)** |
 
 **Choose one path for a given OpenCode origin.** Do not intentionally run both at the same time.
 

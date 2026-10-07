@@ -2,6 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 
 const groqEndpoint = "https://api.groq.com/openai/v1/audio/transcriptions";
 const secret = "TEST_ONLY_NEVER_A_REAL_PROVIDER_KEY";
+const serviceLimits = [
+  { name: "maxAudioMB", max: 100, defaultValue: 20, savedValue: 30 },
+  { name: "maxRecordingSeconds", max: 3600, defaultValue: 300, savedValue: 600 },
+  { name: "timeoutSeconds", max: 300, defaultValue: 60, savedValue: 90 },
+  { name: "maxConcurrent", max: 16, defaultValue: 2, savedValue: 4 },
+  { name: "requestsPerMinute", max: 1000, defaultValue: 10, savedValue: 60 },
+];
 interface ProviderMetadata {
   provider: "groq" | "custom";
   endpoint: string;
@@ -267,6 +274,132 @@ test("read failure is retryable without disabling transcription preferences", as
   await expectNoBrowserKey(page);
 });
 
+test("service limits have integer bounds and persist after saving and reloading", async ({ page, request }) => {
+  await mockProvider(page);
+  await openSettings(page);
+  await expect(page.getByRole("heading", { name: "Service limits Advanced" })).toBeVisible();
+  await expect(page.locator("#limits-help")).toContainText("Requests already running keep their original limits");
+  await expect(page.locator("#limits-help")).toContainText("without cancelling active requests");
+  await expect(page.locator("#maxAudioMB-help")).toContainText("fixed transport cap is 100 MB");
+  for (const limit of serviceLimits) {
+    const input = page.locator(`#${limit.name}`);
+    await expect(input).toHaveValue(String(limit.defaultValue));
+    await expect(input).toHaveAttribute("type", "number");
+    await expect(input).toHaveAttribute("min", "1");
+    await expect(input).toHaveAttribute("max", String(limit.max));
+    await expect(input).toHaveAttribute("step", "1");
+    await expect(input).toHaveAttribute("required", "");
+    await expect(input).toHaveAttribute("aria-describedby", `${limit.name}-help`);
+    await input.fill(String(limit.savedValue));
+  }
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect(page.locator("#status")).toHaveText("Settings saved.");
+  const config = await (await request.get("/voice/config")).json();
+  for (const limit of serviceLimits) expect(config.settings[limit.name]).toBe(limit.savedValue);
+  expect(config.maxAudioBytes).toBe(30 * 1024 * 1024);
+  expect(config.maxRecordingSeconds).toBe(600);
+  await page.reload();
+  await expect(page.locator("#model")).toBeEnabled();
+  for (const limit of serviceLimits) {
+    await expect(page.locator(`#${limit.name}`)).toHaveValue(String(limit.savedValue));
+  }
+});
+
+test("service limits reject empty, fractional, and out-of-range values before sending", async ({ page }) => {
+  await mockProvider(page);
+  const patches: Record<string, unknown>[] = [];
+  await page.route("**/voice/config", async (route) => {
+    if (route.request().method() === "PATCH") patches.push(route.request().postDataJSON());
+    await route.continue();
+  });
+  await openSettings(page);
+  for (const limit of serviceLimits) {
+    const input = page.locator(`#${limit.name}`);
+    for (const value of ["", "0", "1.5", String(limit.max + 1)]) {
+      await input.fill(value);
+      expect(await input.evaluate((element: HTMLInputElement) => element.validity.valid)).toBe(false);
+      await page.getByRole("button", { name: "Save settings", exact: true }).click();
+      await expect(input).toBeFocused();
+      // The handler also guards a dispatched submit that bypasses native form validation.
+      await page.locator("#settings").evaluate((form) => {
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
+      await expect(input).toBeEnabled();
+    }
+    await input.fill(String(limit.defaultValue));
+  }
+  await page.locator("#maxConcurrent").fill("3");
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect(page.locator("#status")).toHaveText("Settings saved.");
+  expect(patches).toEqual([{ maxConcurrent: 3 }]);
+});
+
+test("partial limit saves preserve preferences and limits changed on another device", async ({ page, request }) => {
+  await mockProvider(page);
+  const patches: Record<string, unknown>[] = [];
+  await page.route("**/voice/config", async (route) => {
+    if (route.request().method() === "PATCH") patches.push(route.request().postDataJSON());
+    await route.continue();
+  });
+  await openSettings(page);
+  const response = await request.patch("/voice/config", {
+    headers: { "X-OCVD-Request": "1" },
+    data: { model: "another-device-model", timeoutSeconds: 120, requestsPerMinute: 75, autoSubmit: true },
+  });
+  expect(response.ok()).toBe(true);
+  await page.locator("#maxConcurrent").fill("3");
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect(page.locator("#status")).toHaveText("Settings saved.");
+  expect(patches).toEqual([{ maxConcurrent: 3 }]);
+  const config = await (await request.get("/voice/config")).json();
+  expect(config.settings).toMatchObject({
+    model: "another-device-model", timeoutSeconds: 120, requestsPerMinute: 75,
+    maxConcurrent: 3, autoSubmit: true,
+  });
+  await expect(page.locator("#model")).toHaveValue("another-device-model");
+  await expect(page.locator("#timeoutSeconds")).toHaveValue("120");
+  await expect(page.locator("#requestsPerMinute")).toHaveValue("75");
+  // Refreshing the baseline also prevents a later no-op save from restoring stale values.
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect.poll(() => patches.length).toBe(2);
+  await expect(page.locator("#status")).toHaveText("Settings saved.");
+  expect(patches[1]).toEqual({});
+});
+
+test("limit save failures retain edits and retries suppress duplicate submits", async ({ page }) => {
+  await mockProvider(page);
+  let failWrite = true;
+  let releaseWrite!: () => void;
+  const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve; });
+  const patches: Record<string, unknown>[] = [];
+  await page.route("**/voice/config", async (route) => {
+    if (route.request().method() !== "PATCH") { await route.continue(); return; }
+    patches.push(route.request().postDataJSON());
+    if (failWrite) { await route.fulfill({ status: 503, json: { error: secret } }); return; }
+    await writeGate;
+    await route.continue();
+  });
+  await openSettings(page);
+  await page.locator("#maxAudioMB").fill("35");
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect(page.locator("#status")).toContainText("Could not save settings");
+  await expect(page.locator("#maxAudioMB")).toHaveValue("35");
+  await expect(page.locator("#maxAudioMB")).toBeEnabled();
+  expect(await page.locator("body").innerText()).not.toContain(secret);
+  failWrite = false;
+  await page.locator("#settings").evaluate((form) => {
+    for (let i = 0; i < 3; i++) form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  try {
+    await expect.poll(() => patches.length).toBe(2);
+    for (const limit of serviceLimits) await expect(page.locator(`#${limit.name}`)).toBeDisabled();
+    await expect(page.locator("#model")).toBeDisabled();
+  } finally { releaseWrite(); }
+  await expect(page.locator("#status")).toHaveText("Settings saved.");
+  expect(patches).toEqual([{ maxAudioMB: 35 }, { maxAudioMB: 35 }]);
+  for (const limit of serviceLimits) await expect(page.locator(`#${limit.name}`)).toBeEnabled();
+});
+
 for (const source of ["legacy", "encrypted"] as const) {
   test(`shows actionable ${source} key status without exposing backend errors`, async ({ page }) => {
     await mockProvider(page, {
@@ -283,7 +416,7 @@ for (const source of ["legacy", "encrypted"] as const) {
 }
 
 for (const width of [320, 1024]) {
-  test(`provider controls stay within the viewport at ${width}px`, async ({ page }) => {
+  test(`provider and service limit controls stay within the viewport at ${width}px`, async ({ page }) => {
     await mockProvider(page);
     await page.setViewportSize({ width, height: 915 });
     await openSettings(page);
@@ -291,7 +424,7 @@ for (const width of [320, 1024]) {
     await page.locator("#endpoint").fill(`https://speech.example.test/${"a".repeat(256)}/transcriptions`);
     await enterKey(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-    for (const id of ["provider", "endpoint", "api-key", "edit-key", "remove-key"]) {
+    for (const id of ["provider", "endpoint", "api-key", "edit-key", "remove-key", ...serviceLimits.map((limit) => limit.name)]) {
       const bounds = await page.locator(`#${id}`).boundingBox();
       expect(bounds).not.toBeNull();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);

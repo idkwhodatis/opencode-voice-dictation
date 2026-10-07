@@ -1,11 +1,12 @@
 # Stock Caddy: no custom modules needed.
 # Merge these handlers into your EXISTING authenticated OpenCode site.
-# Required Caddy environment: VOICE_SITE, VOICE_AUTH_HASH, VOICE_PROXY_TOKEN.
+# No environment variables required. Edit the site, password hash, token-file path, and upstream addresses.
+# The private token file must contain the same value used by Bun, without a trailing newline.
 # Use your existing authentication instead of basic_auth where appropriate;
 # authentication MUST cover /voice/* as well as the OpenCode routes.
-{$VOICE_SITE} {
+opencode.example.com {
 	basic_auth {
-		opencode {$VOICE_AUTH_HASH}
+		opencode REPLACE_WITH_BCRYPT_HASH
 	}
 
 	# Replace OpenCode's Workbox service worker with this repository's no-op
@@ -25,7 +26,7 @@
 	handle /voice/* {
 		reverse_proxy 127.0.0.1:4097 {
 			# Overwrite, never append or trust a client-supplied value.
-			header_up X-OCVD-Proxy-Token {$VOICE_PROXY_TOKEN}
+			header_up X-OCVD-Proxy-Token {file./path/to/opencode-voice/proxy.token}
 		}
 	}
 
@@ -38,7 +39,7 @@
 	handle @documents {
 		# Bun fetches only the HTML shell from OpenCode and injects voice.js.
 		reverse_proxy 127.0.0.1:4097 {
-			header_up X-OCVD-Proxy-Token {$VOICE_PROXY_TOKEN}
+			header_up X-OCVD-Proxy-Token {file./path/to/opencode-voice/proxy.token}
 		}
 	}
 	handle {

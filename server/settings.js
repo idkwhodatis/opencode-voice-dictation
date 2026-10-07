@@ -22,11 +22,14 @@ let savedProvider = null;
 let providerBusy = false;
 let settingsBusy = false;
 // Delivery is chosen per recording, not through the legacy autoSubmit setting.
-const names = ["model", "language", "whisperPrompt", "temperature"];
+const numericNames = new Set([
+  "temperature", "maxAudioMB", "maxRecordingSeconds", "timeoutSeconds", "maxConcurrent", "requestsPerMinute",
+]);
+const names = ["model", "language", "whisperPrompt", ...numericNames];
 function values() {
   return Object.fromEntries(names.map((name) => {
     const input = form.elements.namedItem(name);
-    return [name, name === "temperature" ? Number(input.value) : input.value];
+    return [name, numericNames.has(name) ? Number(input.value) : input.value];
   }));
 }
 async function api(path, init) {
@@ -176,7 +179,7 @@ removeKey.addEventListener("click", () => {
 retryProvider.addEventListener("click", loadProvider);
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (settingsBusy || !previous) return;
+  if (settingsBusy || !previous || !form.reportValidity()) return;
   // Only send edited fields; don't overwrite unrelated settings changed on another device.
   const patch = Object.fromEntries(Object.entries(values()).filter(([name, value]) => value !== previous?.[name]));
   settingsBusy = true;

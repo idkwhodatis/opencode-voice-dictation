@@ -6,9 +6,8 @@ After=network.target opencode-server.service
 
 [Service]
 Type=simple
-WorkingDirectory=%h/repos/opencode-voice-dictation/server
-ExecStart=%h/.bun/bin/bun run main.ts
-EnvironmentFile=%h/.config/opencode-voice/voice.env
+WorkingDirectory=%h/repos/opencode-webui-voice-input/server
+ExecStart=%h/.bun/bin/bun run main.ts --config %h/.config/opencode-voice/config.json
 Restart=on-failure
 RestartSec=3
 UMask=0077

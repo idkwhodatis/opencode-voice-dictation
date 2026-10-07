@@ -17,7 +17,7 @@
 | 方式 | 适合场景 | 工作方式 |
 | --- | --- | --- |
 | **A. Tampermonkey 用户脚本** | 桌面浏览器，以及支持 userscript/扩展的浏览器 | 在浏览器端注入麦克风 UI。STT 设置和 API key 保存在 userscript storage 中。**[安装用户脚本](https://raw.githubusercontent.com/idkwhodatis/opencode-webui-voice-input/master/dist/opencode-voice-dictation.user.js)** |
-| **B. 服务端注入（Caddy + Bun + SQLite）** | **任何设备上的现代浏览器**，尤其适合不能安装 userscript/扩展的环境 | Caddy/Bun 把语音 UI 注入 OpenCode。API key 加密保存在 SQLite 中，主密钥使用独立的私有文件；可在设置网页配置 Groq 或自定义兼容接口。**[服务端部署说明](server/README.md)** |
+| **B. 服务端注入（Caddy + Bun + SQLite）** | **任何设备上的现代浏览器**，尤其适合不能安装 userscript/扩展的环境 | Caddy/Bun 把语音 UI 注入 OpenCode。API key 加密保存在 SQLite 中，主密钥使用独立的私有文件；可在设置网页配置 Groq、自定义兼容接口和运行限额；启动配置使用 JSON 文件。**[服务端部署说明](server/README.md)** |
 
 **同一个 OpenCode origin 请只启用一种方式。** 不建议同时启用 Tampermonkey 和服务端注入。
 
