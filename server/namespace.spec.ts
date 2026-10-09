@@ -15,17 +15,27 @@ function mount(info: TestInfo): Mount {
   return info.project.metadata as Mount;
 }
 async function expectVoiceControl(page: Page, basePath: string) {
+  const script = new URL(`${basePath}voice/sw.js`, page.url()).href;
+  // skipWaiting can change the controller while the new worker is still
+  // activating. Wait for activate.waitUntil (including cache cleanup) to finish.
   await expect
-    .poll(() => page.evaluate(() => navigator.serviceWorker.controller?.scriptURL))
-    .toBe(new URL(`${basePath}voice/sw.js`, page.url()).href);
-  const registration = await page.evaluate(async (base) => {
-    const entry = await navigator.serviceWorker.getRegistration(base);
-    return { scope: entry?.scope, script: entry?.active?.scriptURL };
-  }, basePath);
-  expect(registration).toEqual({
-    scope: new URL(basePath, page.url()).href,
-    script: new URL(`${basePath}voice/sw.js`, page.url()).href,
-  });
+    .poll(() =>
+      page.evaluate(async (base) => {
+        const entry = await navigator.serviceWorker.getRegistration(base);
+        return {
+          scope: entry?.scope,
+          script: entry?.active?.scriptURL,
+          state: entry?.active?.state,
+          controller: navigator.serviceWorker.controller?.scriptURL,
+        };
+      }, basePath),
+    )
+    .toEqual({
+      scope: new URL(basePath, page.url()).href,
+      script,
+      state: "activated",
+      controller: script,
+    });
 }
 async function seedWorkers(page: Page, basePath: string, legacy = false) {
   await page.goto("/__namespace/seed");
