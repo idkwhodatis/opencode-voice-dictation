@@ -6,8 +6,35 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["bun"]
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "bun"
+    ]
   },
-  "include": ["caddy-smoke.ts", "config.ts", "config.test.ts", "main.test.ts", "provider.ts", "provider.test.ts", "main.ts", "service.ts", "settings.ts", "browser.ts", "service.test.ts", "browser-fixture.ts"]
+  "include": [
+    "caddy-smoke.ts",
+    "config.ts",
+    "config.test.ts",
+    "main.test.ts",
+    "provider.ts",
+    "provider.test.ts",
+    "main.ts",
+    "service.ts",
+    "settings.ts",
+    "browser.ts",
+    "service.test.ts",
+    "browser-fixture.ts",
+    "paths.ts",
+    "paths.test.ts",
+    "registration.ts",
+    "registration.test.ts",
+    "namespace-fixture.ts",
+    "caddy-mount-smoke.ts",
+    "namespace.spec.ts",
+    "namespace.playwright.config.ts"
+  ]
 }

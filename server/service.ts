@@ -2,8 +2,9 @@ import { timingSafeEqual } from "node:crypto";
 import type { SettingsStore, VoiceSettings } from "./settings";
 import type { ProviderStore } from "./provider";
 
+import { createPaths, internalPath, normalizeProxyMode, type ProxyMode } from "./paths";
+
 export const PREFIX = "/voice";
-const SCRIPT = '<script id="ocvd-server-script" src="/voice/voice.js" defer></script>';
 const MIME_EXTENSIONS: Record<string, string> = {
   "audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg",
   "audio/mp4": "mp4", "video/mp4": "mp4", "audio/mpeg": "mp3",
@@ -16,6 +17,8 @@ class HttpError extends Error {
 
 export interface ServiceOptions {
   origin: string;
+  basePath?: string;
+  proxyMode?: ProxyMode;
   proxyToken: string;
   upstream: string;
   endpoint?: string;
@@ -100,6 +103,9 @@ function cleanProxyHeaders(original: Headers): Headers {
 export function createService(options: ServiceOptions) {
   // A Caddy-injected credential is independent of browser-facing Basic/OIDC auth.
   if (options.proxyToken.length < 32) throw new Error("Proxy token must be at least 32 characters.");
+  const paths = createPaths(options.basePath);
+  const proxyMode = normalizeProxyMode(options.proxyMode);
+  const script = `<script id="ocvd-server-script" data-base-path="${paths.basePath}" src="${paths.voice("voice.js")}"></script>`;
   const origin = new URL(options.origin).origin;
   if (options.origin !== origin) throw new Error("origin must contain only scheme and authority.");
   const upstream = new URL(options.upstream);
@@ -233,10 +239,31 @@ export function createService(options: ServiceOptions) {
     outHeaders.set("Cache-Control", "no-store");
     // Preserve CSP and authentication headers. Do not disable CSP to force injection.
     if (html.includes('id="ocvd-server-script"')) return new Response(html, { headers: outHeaders });
+    // A parser-blocking bootstrap must still obey upstream meta CSP. If a policy
+    // appears after an app script, there is no safe point that both precedes app
+    // registration and follows that policy; leave the shell unchanged instead.
+    let sawScript = false;
+    let latePolicy = false;
+    await new HTMLRewriter()
+        .on("script", { element() { sawScript = true; } })
+        .on("meta", { element(element) {
+          const directive = element.getAttribute("http-equiv")?.trim().toLowerCase();
+          // Bun's rewriter exposes raw attribute entities rather than browser-decoded
+          // values. Fail closed for encoded late directives instead of guessing.
+          if (sawScript && (directive === "content-security-policy" || directive?.includes("&"))) latePolicy = true;
+        } })
+        .transform(new Response(html)).text();
+    if (latePolicy) {
+      outHeaders.set("X-OCVD-Injection", "skipped-late-meta-csp");
+      return new Response(html, { headers: outHeaders });
+    }
     let injected = false;
     return new HTMLRewriter()
-      .on("head", { element(element) { if (!injected) { element.append(SCRIPT, { html: true }); injected = true; } } })
-      .onDocument({ end(end) { if (!injected) end.append(SCRIPT, { html: true }); } })
+      .on("head", { element(element) { element.onEndTag((end) => {
+        if (!injected) { end.before(script, { html: true }); injected = true; }
+      }); } })
+      .on("script", { element(element) { if (!injected) { element.before(script, { html: true }); injected = true; } } })
+      .onDocument({ end(end) { if (!injected) end.append(script, { html: true }); } })
       .transform(new Response(html, { headers: outHeaders }));
   }
 
@@ -246,7 +273,8 @@ export function createService(options: ServiceOptions) {
         throw new HttpError(401, "Unauthorized proxy request.");
       }
       const url = new URL(req.url);
-      const path = url.pathname;
+      const path = internalPath(url.pathname, paths.basePath, proxyMode);
+      if (path === null) throw new HttpError(404, "Request is outside the configured OpenCode mount.");
       const isApi = [`${PREFIX}/config`, `${PREFIX}/provider`, `${PREFIX}/transcribe`, `${PREFIX}/health`].includes(path);
       const requestOrigin = req.headers.get("origin");
       const site = req.headers.get("sec-fetch-site");
@@ -292,14 +320,25 @@ export function createService(options: ServiceOptions) {
         return await transcribe(req);
       }
       if (path === `${PREFIX}/health`) return req.method === "GET" ? json({ ok: true }) : json({ error: "Use GET." }, 405);
-      if (path === PREFIX && req.method === "GET") return new Response(null, { status: 308, headers: { Location: `${PREFIX}/` } });
+      if (path === PREFIX && ["GET", "HEAD"].includes(req.method)) return new Response(null, { status: 308, headers: { Location: paths.voiceBasePath } });
       const asset = options.assets.get(path);
       if (asset && ["GET", "HEAD"].includes(req.method)) {
-        return new Response(req.method === "HEAD" ? null : asset.body, { headers: {
+        const response = new Response(req.method === "HEAD" ? null : asset.body, { headers: {
           "Content-Type": asset.type, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
           "Referrer-Policy": "same-origin",
+          ...(path === `${PREFIX}/sw.js` ? { "Service-Worker-Allowed": paths.basePath } : {}),
           ...(asset.type.startsWith("text/html") ? { "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'" } : {}),
         } });
+        if (!asset.type.startsWith("text/html") || req.method === "HEAD") return response;
+        // Transform only plugin-owned markup; public URLs never inherit an internal proxy prefix.
+        return new HTMLRewriter()
+          .on('script[src="/voice/settings.js"]', { element(el) {
+            el.setAttribute("src", paths.voice("settings.js"));
+            el.setAttribute("data-base-path", paths.basePath);
+          } })
+          .on('link[href="/voice/settings.css"]', { element(el) { el.setAttribute("href", paths.voice("settings.css")); } })
+          .on('a[href="/"]', { element(el) { el.setAttribute("href", paths.basePath); } })
+          .transform(response);
       }
       if (path === PREFIX || path.startsWith(`${PREFIX}/`)) throw new HttpError(404, "Voice endpoint not found.");
       return await inject(req, url);

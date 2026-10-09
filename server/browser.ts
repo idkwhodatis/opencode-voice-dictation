@@ -11,6 +11,15 @@ import type { VoiceSettings } from "./settings";
 import { createServerControls } from "./controls";
 import { createCaretTracker, insertAtCaret } from "./caret";
 import { draftSnapshot, sendDraft } from "./send";
+import { createPaths } from "./paths";
+import { installVoiceWorker } from "./registration";
+
+// currentScript is only available during this classic script's evaluation.
+// Capture the configured public mount before any DOM event or asynchronous work.
+const paths = createPaths(document.currentScript?.getAttribute("data-base-path") ?? "/");
+void installVoiceWorker(paths).catch((error: unknown) => {
+  console.warn("Voice service worker could not be installed.", error);
+});
 
 type FinishAction = "review" | "send";
 interface Config {
@@ -21,7 +30,7 @@ interface Config {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/voice/${path}`, {
+  const response = await fetch(paths.voice(path), {
     ...init, credentials: "same-origin", cache: "no-store",
     headers: { "X-OCVD-Request": "1", ...init.headers },
   });
@@ -174,7 +183,7 @@ function start() {
     }
   }
   ui = setupUI({ onToggle: (kind) => { void toggle(kind); }, onCancel: cancel, onContextChange: checkTarget });
-  controls = createServerControls(() => { void finish("send"); });
+  controls = createServerControls(() => { void finish("send"); }, paths.voiceBasePath);
   setupKeyboardShortcut(() => { void toggle(isQuestionPromptOpen() ? "question" : "composer"); });
   window.addEventListener("pagehide", cancel);
 }

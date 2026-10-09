@@ -3,7 +3,7 @@ import type { DictationState } from "../src/types";
 import { createNativeSend } from "./native-submit";
 
 // Server-only controls: leave the userscript's shared UI and distribution unchanged.
-export function createServerControls(onSend: () => void) {
+export function createServerControls(onSend: () => void, settingsHref: string) {
   let state: DictationState = "idle";
   const native = createNativeSend(onSend);
   const style = document.createElement("style");
@@ -24,7 +24,7 @@ export function createServerControls(onSend: () => void) {
       if (!link) {
         link = document.createElement("a");
         link.className = "ocvd-settings";
-        link.href = "/voice/";
+        link.href = settingsHref;
         link.target = "_blank";
         link.rel = "noopener";
         link.textContent = "⚙";

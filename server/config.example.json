@@ -1,5 +1,7 @@
 {
   "publicOrigin": "https://opencode.example.com",
+  "basePath": "/",
+  "proxyMode": "preserve",
   "host": "127.0.0.1",
   "port": 4097,
   "upstream": "http://127.0.0.1:4096",

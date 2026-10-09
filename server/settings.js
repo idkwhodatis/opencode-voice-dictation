@@ -1,4 +1,7 @@
-"use strict";
+import { createPaths } from "./paths";
+import { installVoiceWorker } from "./registration";
+const paths = createPaths(document.currentScript?.dataset.basePath ?? "/");
+void installVoiceWorker(paths).catch((error) => console.warn("Voice worker could not start.", error));
 const form = document.querySelector("#settings");
 const fields = document.querySelector("#fields");
 const status = document.querySelector("#status");
@@ -33,7 +36,7 @@ function values() {
   }));
 }
 async function api(path, init) {
-  const response = await fetch(path, {
+  const response = await fetch(paths.voice(path), {
     ...init, credentials: "same-origin", cache: "no-store",
     headers: { "Content-Type": "application/json", "X-OCVD-Request": "1" },
     signal: AbortSignal.timeout(10000),
@@ -117,7 +120,7 @@ async function loadProvider() {
   retryProvider.hidden = true;
   providerStatus.textContent = "";
   try {
-    showProvider(await api("/voice/provider"));
+    showProvider(await api("provider"));
     providerFields.disabled = false;
   } catch {
     clearKey();
@@ -133,7 +136,7 @@ async function saveProvider(payload, message) {
   providerFields.disabled = true;
   providerStatus.textContent = "Saving…";
   try {
-    showProvider(await api("/voice/provider", { method: "PUT", body: JSON.stringify(payload) }));
+    showProvider(await api("provider", { method: "PUT", body: JSON.stringify(payload) }));
     providerStatus.textContent = message;
   } catch {
     // Keep the entered key for an intentional retry; never echo an error or payload.
@@ -185,13 +188,13 @@ form.addEventListener("submit", async (event) => {
   settingsBusy = true;
   fields.disabled = true;
   status.textContent = "Saving…";
-  try { show(await api("/voice/config", { method: "PATCH", body: JSON.stringify(patch) })); status.textContent = "Settings saved."; }
+  try { show(await api("config", { method: "PATCH", body: JSON.stringify(patch) })); status.textContent = "Settings saved."; }
   catch { status.textContent = "Could not save settings. Check your connection and sign-in, then retry."; }
   finally { settingsBusy = false; fields.disabled = false; }
 });
 async function loadSettings() {
   fields.disabled = true;
-  try { show(await api("/voice/config")); fields.disabled = false; }
+  try { show(await api("config")); fields.disabled = false; }
   catch { status.textContent = "Could not load settings. Check your connection and sign-in, then reload."; }
 }
 // Cover navigating away, closing the tab, and back/forward-cache restoration.

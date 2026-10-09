@@ -73,6 +73,7 @@ describe("JSON startup configuration", () => {
       warnings: [],
       configPath: f.configPath,
       config: {
+        basePath: "/", proxyMode: "preserve",
         publicOrigin: "https://voice.example.test",
         host: "127.0.0.1",
         port: 4097,
@@ -113,6 +114,7 @@ describe("JSON startup configuration", () => {
       expect(loaded.configPath).toBe(path);
       expect(loaded.initialRuntimeLimits).toBeUndefined();
       expect(loaded.config).toEqual({
+        basePath: "/", proxyMode: "preserve",
         publicOrigin: "https://voice.example.test",
         host: "0.0.0.0",
         port: 8087,
@@ -560,6 +562,7 @@ describe("legacy environment migration", () => {
     expect(loaded.configPath).toBeUndefined();
     expect(loaded.initialRuntimeLimits).toEqual(DEFAULT_LIMITS);
     expect(loaded.config).toEqual({
+        basePath: "/", proxyMode: "preserve",
       publicOrigin: required.VOICE_PUBLIC_ORIGIN,
       proxyToken: TOKEN,
       proxyTokenFile: undefined,
@@ -697,5 +700,23 @@ describe("legacy environment migration", () => {
     expect(
       await failure(f.load({ env: { VOICE_PUBLIC_ORIGIN: required.VOICE_PUBLIC_ORIGIN } })),
     ).toContain("Proxy token");
+  });
+});
+
+describe("public path configuration", () => {
+  test("normalizes public mount independently of proxy stripping", async () => {
+    const f = fixture();
+    f.json({ publicOrigin: "https://voice.example.test", basePath: "/apps/ai/opencode", proxyMode: "strip" });
+    const loaded = await f.load();
+    expect(loaded.config.basePath).toBe("/apps/ai/opencode/");
+    expect(loaded.config.proxyMode).toBe("strip");
+  });
+  for (const value of ["//evil/", "/a/../", "/a%2fb/", "https://evil/", "/a?b", null]) test(`rejects basePath ${JSON.stringify(value)}`, async () => {
+    const f = fixture(); f.json({ publicOrigin: "https://voice.example.test", basePath: value });
+    await expect(f.load()).rejects.toThrow("basePath");
+  });
+  test("rejects implicit forwarding-header/automatic route mode", async () => {
+    const f = fixture(); f.json({ publicOrigin: "https://voice.example.test", proxyMode: "auto" });
+    await expect(f.load()).rejects.toThrow("proxyMode");
   });
 });

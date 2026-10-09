@@ -2,11 +2,14 @@ import { readFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { normalizeBasePath, normalizeProxyMode, type ProxyMode } from "./paths";
 import { GROQ_ENDPOINT } from "./provider";
 import { DEFAULT_RUNTIME_LIMITS, type RuntimeLimits } from "./settings";
 
 export interface StartupConfiguration {
   publicOrigin: string;
+  basePath: string;
+  proxyMode: ProxyMode;
   host: string;
   port: number;
   upstream: string;
@@ -53,6 +56,8 @@ const LEGACY_VARIABLES = [
 ] as const;
 const STARTUP_FIELDS = [
   "publicOrigin",
+  "basePath",
+  "proxyMode",
   "host",
   "port",
   "upstream",
@@ -289,6 +294,8 @@ export async function loadConfiguration(
     const base = dirname(configPath);
     const config: StartupConfiguration = {
       publicOrigin: origin(input.publicOrigin, "publicOrigin"),
+      basePath: normalizeBasePath(input.basePath),
+      proxyMode: normalizeProxyMode(input.proxyMode),
       host: hostname(input.host === undefined ? defaults.host : input.host),
       port: integer(input.port === undefined ? defaults.port : input.port, "port", 1, 65535),
       upstream: origin(
@@ -354,6 +361,8 @@ export async function loadConfiguration(
     integer(env[name] === undefined ? fallback : Number(env[name]), name, min, max);
   const config: StartupConfiguration = {
     publicOrigin: origin(env.VOICE_PUBLIC_ORIGIN, "publicOrigin"),
+    basePath: "/",
+    proxyMode: "preserve",
     host: hostname(env.VOICE_HOST?.trim() || defaults.host),
     port: legacyInteger("VOICE_PORT", defaults.port, 1, 65535),
     upstream: origin(env.OPENCODE_UPSTREAM ?? defaults.upstream, "upstream"),

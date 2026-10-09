@@ -4,20 +4,12 @@
 # The private token file must contain the same value used by Bun, without a trailing newline.
 # Use your existing authentication instead of basic_auth where appropriate;
 # authentication MUST cover /voice/* as well as the OpenCode routes.
+# JSON: "basePath": "/", "proxyMode": "preserve" (the defaults).
+# Nested prefix-preserving and prefix-stripping examples are in README.md.
+# The no-op worker is served by Bun at /voice/sw.js, never by a sibling /sw.js handler.
 opencode.example.com {
 	basic_auth {
 		opencode REPLACE_WITH_BCRYPT_HASH
-	}
-
-	# Replace OpenCode's Workbox service worker with this repository's no-op
-	# worker. The stock worker serves its cached app shell for every in-scope
-	# navigation and its denylist does not cover /voice, so it would hide both
-	# the injected microphone and the settings page. Adjust the root to your
-	# checkout.
-	handle /sw.js {
-		root * /path/to/opencode-webui-voice-input/server
-		header Cache-Control "no-cache"
-		file_server
 	}
 
 	handle /voice {
@@ -37,7 +29,8 @@ opencode.example.com {
 		not path /api/* /event /global/event
 	}
 	handle @documents {
-		# Bun fetches only the HTML shell from OpenCode and injects voice.js.
+		# Bun fetches only the HTML shell and inserts the blocking voice.js
+		# first in <head>, before OpenCode can register its cached-shell worker.
 		reverse_proxy 127.0.0.1:4097 {
 			header_up X-OCVD-Proxy-Token {file./path/to/opencode-voice/proxy.token}
 		}

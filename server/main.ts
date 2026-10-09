@@ -16,17 +16,24 @@ export async function buildBrowser(): Promise<Blob> {
   return result.outputs[0];
 }
 
+export async function buildAssets() {
+  const settingsBundle = await Bun.build({ entrypoints: [join(import.meta.dir, "settings.js")], target: "browser", format: "iife", minify: true });
+  if (!settingsBundle.success || !settingsBundle.outputs[0]) throw new Error("Settings browser build failed.");
+  return new Map([
+    ["/voice/voice.js", { body: await buildBrowser(), type: "text/javascript; charset=utf-8" }],
+    ["/voice/", { body: Bun.file(join(import.meta.dir, "settings.html")), type: "text/html; charset=utf-8" }],
+    ["/voice/settings.js", { body: settingsBundle.outputs[0], type: "text/javascript; charset=utf-8" }],
+    ["/voice/settings.css", { body: Bun.file(join(import.meta.dir, "settings.css")), type: "text/css; charset=utf-8" }],
+    ["/voice/sw.js", { body: Bun.file(join(import.meta.dir, "sw.js")), type: "text/javascript; charset=utf-8" }],
+  ]);
+}
+
 export async function startServer(options: ConfigurationOptions = {}) {
   process.umask(0o077);
   const loaded = await loadConfiguration(options);
   const config = loaded.config;
   for (const warning of loaded.warnings) console.warn(warning);
-  const assets = new Map([
-    ["/voice/voice.js", { body: await buildBrowser(), type: "text/javascript; charset=utf-8" }],
-    ["/voice/", { body: Bun.file(join(import.meta.dir, "settings.html")), type: "text/html; charset=utf-8" }],
-    ["/voice/settings.js", { body: Bun.file(join(import.meta.dir, "settings.js")), type: "text/javascript; charset=utf-8" }],
-    ["/voice/settings.css", { body: Bun.file(join(import.meta.dir, "settings.css")), type: "text/css; charset=utf-8" }],
-  ]);
+  const assets = await buildAssets();
   let settings: SettingsStore;
   try {
     mkdirSync(dirname(config.databasePath), { recursive: true, mode: 0o700 });
@@ -41,7 +48,7 @@ export async function startServer(options: ConfigurationOptions = {}) {
     } : undefined);
     const handler = createService({
       origin: config.publicOrigin, proxyToken: config.proxyToken, settings, assets, provider,
-      upstream: config.upstream,
+      upstream: config.upstream, basePath: config.basePath, proxyMode: config.proxyMode,
     });
     const server = Bun.serve({
       hostname: config.host, port: config.port,

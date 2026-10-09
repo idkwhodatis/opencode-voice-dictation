@@ -1,14 +1,20 @@
-// No-op service worker for the server-injected voice edition.
+// Network-only worker for this OpenCode app. Served at <basePath>voice/sw.js
+// with Service-Worker-Allowed: <basePath>, and registered at that exact app scope.
+// No fetch handler: app navigations and voice requests always reach the proxy.
 //
-// Stock OpenCode ships a Workbox service worker at /sw.js whose navigation
-// route serves the cached app shell for every in-scope navigation. Its
-// denylist covers /api, /auth and asset prefixes, but not /voice, so it hides
-// both the injected microphone and the /voice/ settings page. Serving this
-// no-op worker instead (skipWaiting + clients.claim, no fetch handler) makes
-// the browser replace the old worker on its next update check and lets every
-// request reach the network. OpenCode works fine without its offline cache.
-//
-// The reverse proxy must return this file for GET /sw.js on the OpenCode
-// origin; see Caddyfile and README.md.
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+// The blocking bootstrap redirects the original app or stock root registration
+// call to this exact app scope. Existing clients whose legacy worker still
+// serves a cached shell must first reach a network-served injected document;
+// they cannot be repaired by code that their cached HTML never loads.
+self.addEventListener("install", (event) => event.waitUntil(self.skipWaiting()));
+self.addEventListener("activate", (event) => event.waitUntil((async () => {
+  // Workbox's default precache name ends with the complete registration scope.
+  // Delete only that exact app-owned name, never all Workbox or origin caches.
+  // Custom cache names cannot be attributed safely and are deliberately retained.
+  try {
+    await self.caches.delete(`workbox-precache-v2-${self.registration.scope}`);
+  } catch {
+    // Storage may be disabled or unavailable; keep the network-only worker usable.
+  }
+  await self.clients.claim();
+})()));

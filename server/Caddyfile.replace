@@ -1,6 +1,13 @@
 # OPTIONAL: injection directly inside Caddy. Requires this nonstandard module:
 #   xcaddy build --with github.com/caddyserver/replace-response
 # The supplied stock Caddyfile is the preferred option when avoiding custom builds.
+# Root deployment JSON: "basePath": "/", "proxyMode": "preserve".
+# Requires the exact lowercase <head> opening tag. Prefer Bun's parser-based
+# injector for other HTML shapes or any meta CSP. This literal replacement is
+# supported only with HTTP-header CSP (no meta CSP), which constrains the bootstrap. The script must be first and parser-blocking.
+# For nested apps update all route matchers, script src and data-base-path;
+# follow README.md's preserve/strip contract. Do not expose root aliases.
+# Bun serves /voice/sw.js with Service-Worker-Allowed: /; no sibling /sw.js handler.
 opencode.example.com {
 	basic_auth {
 		opencode REPLACE_WITH_BCRYPT_HASH
@@ -26,7 +33,7 @@ opencode.example.com {
 					status 200
 					header Content-Type text/html*
 				}
-				"</head>" "<script id=\"ocvd-server-script\" src=\"/voice/voice.js\" defer></script></head>"
+				"<head>" "<head><script id=\"ocvd-server-script\" src=\"/voice/voice.js\" data-base-path=\"/\"></script>"
 			}
 			reverse_proxy 127.0.0.1:4096 {
 				header_up Accept-Encoding identity

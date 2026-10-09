@@ -1,5 +1,5 @@
 // Test-only HTTP fixture: synthetic audio + mocked provider. Never used by main.ts.
-import { buildBrowser } from "./main";
+import { buildAssets } from "./main";
 import { createService } from "./service";
 import { DEFAULT_SETTINGS, openSettings } from "./settings";
 
@@ -26,12 +26,7 @@ const handler = createService({
   origin, proxyToken: token, upstream: "http://127.0.0.1:4096",
   endpoint: "https://provider.example.test/transcribe", getApiKey: async () => "test-key-never-sent-to-browser",
   settings: store, requestsPerMinute: 1000,
-  assets: new Map([
-    ["/voice/voice.js", { body: await buildBrowser(), type: "text/javascript" }],
-    ["/voice/", { body: Bun.file(`${import.meta.dir}/settings.html`), type: "text/html" }],
-    ["/voice/settings.js", { body: Bun.file(`${import.meta.dir}/settings.js`), type: "text/javascript" }],
-    ["/voice/settings.css", { body: Bun.file(`${import.meta.dir}/settings.css`), type: "text/css" }],
-  ]),
+  assets: await buildAssets(),
   fetcher: (async (input: string | URL | Request, init?: RequestInit) => {
     if (new URL(String(input)).hostname === "127.0.0.1") return new Response(shell, { headers: { "Content-Type": "text/html" } });
     calls++;
