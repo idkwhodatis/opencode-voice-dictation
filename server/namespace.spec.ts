@@ -332,11 +332,69 @@ test("a network-reaching legacy Workbox-style worker is replaced at only the exa
   await expectUnrelatedUntouched(page, basePath);
   // Only the exact default app Workbox cache is removed. Do not open it here:
   // caches.open would recreate it and conceal whether cleanup actually happened.
-  expect(
-    await page.evaluate(async (base) => {
-      return (await caches.keys()).includes(`workbox-precache-v2-${location.origin}${base}`);
-    }, basePath),
-  ).toBe(false);
+  const cacheState = await page.evaluate(async (base) => {
+    const name = `workbox-precache-v2-${location.origin}${base}`;
+    const keys = await caches.keys();
+    const shell = await caches.match(`${base}index.html`, { cacheName: name });
+    return { name, keys, present: keys.includes(name), shell: shell ? await shell.text() : null };
+  }, basePath);
+  if (cacheState.present) {
+    // Read-only diagnostics distinguish failed cleanup from an old worker opening
+    // the now-empty cache again. Never caches.open/delete here or change production.
+    const workers = await Promise.all(
+      page
+        .context()
+        .serviceWorkers()
+        .map(async (worker) => {
+          try {
+            return await worker.evaluate(async () => {
+              const scope = globalThis as unknown as {
+                location: { href: string };
+                registration: {
+                  scope: string;
+                  active: ServiceWorker | null;
+                  installing: ServiceWorker | null;
+                  waiting: ServiceWorker | null;
+                };
+                caches?: CacheStorage;
+              };
+              const registration = scope.registration;
+              const cacheName = `workbox-precache-v2-${registration.scope}`;
+              const cachedShell = await scope.caches?.match(
+                new URL("index.html", registration.scope).href,
+                { cacheName },
+              );
+              return {
+                scriptURL: scope.location.href,
+                scope: registration.scope,
+                active: registration.active
+                  ? { scriptURL: registration.active.scriptURL, state: registration.active.state }
+                  : null,
+                installing: registration.installing?.scriptURL ?? null,
+                waiting: registration.waiting?.scriptURL ?? null,
+                cacheStorageAvailable: typeof scope.caches !== "undefined",
+                cacheNames: await scope.caches?.keys(),
+                shell: cachedShell ? await cachedShell.text() : null,
+              };
+            });
+          } catch (error) {
+            return { scriptURL: worker.url(), error: String(error) };
+          }
+        }),
+    );
+    const fixture = (await (await request.get("/__namespace/state")).json()) as FixtureState;
+    const diagnostics = JSON.stringify(
+      { basePath, proxyMode: mount(info).proxyMode, cacheState, workers, fixture },
+      null,
+      2,
+    );
+    console.info(`Namespace cache-cleanup diagnostics:\n${diagnostics}`);
+    await info.attach("namespace-cache-cleanup-diagnostics", {
+      body: diagnostics,
+      contentType: "application/json",
+    });
+  }
+  expect(cacheState.present).toBe(false);
   await page.goto(`${basePath}voice/`);
   await expect(page.locator("#model")).toBeEnabled();
 });
