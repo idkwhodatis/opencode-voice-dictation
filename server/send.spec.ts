@@ -15,9 +15,11 @@ interface SendFixture {
 declare global { interface Window { sendFixture: SendFixture } }
 
 async function setup(page: Page, stateUpdate: StateUpdate = "sync", disabled = false) {
-  await page.clock.install();
+  // A fixed origin avoids browser/runner wall-clock skew making pauseAt a
+  // backwards jump. Only runFor/fastForward advance the send attempt below.
+  await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
   await page.goto("/project/session");
-  await page.clock.pauseAt(new Date());
+  await page.clock.pauseAt(new Date("2026-01-01T00:01:00Z"));
   await page.evaluate(async ({ stateUpdate, disabled }) => {
     const url = "/__test/send.js";
     const { sendDraft } = await import(url) as typeof import("./send");
