@@ -6,6 +6,8 @@ import { DEFAULT_SETTINGS, openSettings } from "./settings";
 const origin = "http://127.0.0.1:44097";
 const token = "test-proxy-token-".repeat(4);
 const store = openSettings(":memory:");
+const sendModule = await Bun.build({ entrypoints: [new URL("./send.ts", import.meta.url).pathname], target: "browser", format: "esm" });
+if (!sendModule.success) throw new Error("Could not build the send test module.");
 let delay = 0;
 let calls = 0;
 let lastModel: FormDataEntryValue | null = null;
@@ -40,6 +42,7 @@ const handler = createService({
 });
 Bun.serve({ hostname: "127.0.0.1", port: 44097, async fetch(req) {
   const path = new URL(req.url).pathname;
+  if (path === "/__test/send.js") return new Response(sendModule.outputs[0], { headers: { "Content-Type": "text/javascript" } });
   if (path === "/__test/reset" && req.method === "POST") {
     delay = 0; calls = 0; lastModel = null; store.patch(DEFAULT_SETTINGS); return Response.json({ ok: true });
   }

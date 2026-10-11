@@ -30,6 +30,8 @@ Text is inserted through native editing/input events so OpenCode sees the change
 
 If the native button is disabled, absent, hidden, or showing Stop/shell instead of Send after transcription, the transcript is retained for manual review. The browser waits at most 1.5 seconds for a verified Send button to enable; it does not queue a send behind a running agent. Changes to the draft during transcription or while awaiting Send cancel automatic sending. Empty/error responses never submit an existing draft. Double taps do not trigger duplicate transcriptions or sends.
 
+The first send attempt runs on the next event-loop turn after insertion, with no fixed 50 ms delay. This lets OpenCode's synchronous input handler and queued reactive microtasks consume the new draft even when Send was already enabled. Only native readiness is retried, every 50 ms within the same 1.5-second budget. Once the native click is dispatched, the voice client stops: it does not infer server acceptance or retry a network failure. An app that defers its draft state beyond that turn must keep its native Send button disabled until ready. No extra sending overlay is shown.
+
 ## Settings and upgrades
 
 The injected settings page has no global auto-send checkbox. Model, language, prompt, and temperature continue to persist through SQLite and the REST API. For backward compatibility, the database and REST responses retain the legacy `autoSubmit` field; the injected client deliberately ignores it. Existing `autoSubmit: true` does not change Stop into a send action. The Tampermonkey edition is unchanged: it still appends at the end and has its own auto-submit preference.
@@ -41,6 +43,8 @@ Pull the repository changes, restart the Bun voice service, and reload the OpenC
 录音时不再添加额外发送按钮，直接复用 **OpenCode 原本的发送箭头**：点击后先停止录音、转写、在光标处插入文字，再通过原生发送逻辑发送整份草稿。**方形停止按钮**仍然只转写，方便检查、修改、删除或手动发送。取消或完成后会恢复原按钮的状态；运行中 agent 的 Stop 按钮和 shell 操作不会被接管。快捷键 Ctrl+Space 和录音时长上限始终只保留草稿。
 
 两种操作都会在**光标位置插入**：录音时可以移动光标或选择普通文字；按停止或发送时会固定位置，等待转写期间再移动光标不会改变这次插入位置。选中的普通文字会被替换。若从未在输入框放置光标，则默认追加到末尾。提及和附件不会因转写被删除；若转写期间修改了草稿，或保存的选区不安全/失效，结果会追加到末尾供检查，并取消自动发送。Tampermonkey 版仍保持原来的末尾追加行为。
+
+插入后等当前输入事件及其响应式微任务处理完，就在下一轮事件循环尝试发送，不再固定等待 50 ms，也不新增“发送中”遮罩。若原生发送按钮尚未就绪，每 50 ms 重试一次，总等待不超过 1.5 秒；一旦触发原生点击就停止重试，不会因网络响应慢而重复发送。
 
 ## Русский
 
